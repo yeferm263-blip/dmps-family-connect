@@ -607,8 +607,10 @@ export async function restorePublicContentBackup(
     const rows = ((backup.data as any)[table] || []) as any[];
     if (!rows.length) continue;
     onProgress?.(`Restaurando ${table}…`);
-    for (const part of chunkBySize(rows, 200, 400_000)) {
+        const maxRows = table === "articles" || table === "article_translations" ? 3 : 50;
+    for (const part of chunkBySize(rows, maxRows, 250_000)) {
       const res = await upsertAdaptive(table, part);
+      await new Promise((resolve) => setTimeout(resolve, 150));
       restored += res.ok;
       errors.push(...res.errors.map((m) => `${table}: ${m}`));
     }
