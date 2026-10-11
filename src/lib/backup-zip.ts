@@ -7,12 +7,13 @@ import {
   type PublicContentBackup,
 } from "@/lib/public-content-reset";
 import { uploadInlineImages } from "@/lib/media-upload.functions";
+import { externalizeInlineImages } from "@/lib/externalize-images";
 
 /** Site-wide configuration tables included in a full ZIP backup (conflict column). */
 const CONFIG_TABLES: Record<string, string> = {
   appearance_settings: "id",
   site_settings: "key",
-  help_settings: "id",
+    help_settings: "setting_key",
   social_media_channels: "id",
   resources: "id",
   resource_translations: "id",
@@ -387,6 +388,9 @@ export async function restoreFullBackup(
       working = deepReplace(working, map, keys);
     }
   }
+
+    onProgress?.("Preparando imágenes incrustadas…");
+  working = await externalizeInlineImages(working);
 
   const res = await restorePublicContentBackup(working, onProgress);
   const errors = [...res.errors];
