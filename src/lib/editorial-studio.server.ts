@@ -75,7 +75,7 @@ export async function verifySourceUrlSafety(targetUrl: string): Promise<UrlCheck
     }
 
     // Check against SSRF via DNS
-    let addresses: dns.LookupAddress[] = [];
+    let addresses: import("node:dns").LookupAddress[] = [];
     try {
       addresses = await dns.lookup(host, { all: true });
     } catch {

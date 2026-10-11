@@ -120,7 +120,7 @@ export async function fetchRemoteImageSafely(targetUrl: string, maxRedirects = 3
     }
 
     // DNS lookup - checks all returned IP addresses
-    let addresses: dns.LookupAddress[];
+    let addresses: import("node:dns").LookupAddress[];
     try {
       addresses = await dns.lookup(hostname, { all: true });
     } catch (dnsErr) {
