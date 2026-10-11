@@ -8,7 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -246,9 +246,8 @@ function RootComponent() {
           <UniversalPageTranslator />
           <SchoolProvider>
               <PodcastPlayerProvider>
-                <DmpsAnalyticsObserver />
+                <DeferredBackground />
                 <BrandingHeadSync />
-                <RealtimeSync />
                 {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
                 <Outlet />
                 <GlobalPodcastPlayer />
@@ -269,4 +268,26 @@ function RootComponent() {
 function RealtimeSync() {
   useRealtimeContentSync();
   return null;
+}
+
+/** Starts analytics + live sync only after the page is idle, so first paint is faster. */
+function DeferredBackground() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const w = window as any;
+    const start = () => setReady(true);
+    if (w.requestIdleCallback) {
+      const id = w.requestIdleCallback(start, { timeout: 2500 });
+      return () => w.cancelIdleCallback?.(id);
+    }
+    const t = setTimeout(start, 1200);
+    return () => clearTimeout(t);
+  }, []);
+  if (!ready) return null;
+  return (
+    <>
+      <DmpsAnalyticsObserver />
+      <RealtimeSync />
+    </>
+  );
 }

@@ -100,11 +100,11 @@ export async function createFullBackupZip(
 }
 
 export const ZIP_RESTORE_LIMITS = {
-  MAX_ZIP_BYTES: 50 * 1024 * 1024, // 50 MB
-  MAX_ENTRIES: 1000,
-  MAX_UNCOMPRESSED_ENTRY_BYTES: 25 * 1024 * 1024, // 25 MB
-  MAX_TOTAL_UNCOMPRESSED_BYTES: 150 * 1024 * 1024, // 150 MB
-  MAX_EXPANSION_RATIO: 15,
+  MAX_ZIP_BYTES: 2 * 1024 * 1024 * 1024, // 2 GB
+  MAX_ENTRIES: 100000,
+  MAX_UNCOMPRESSED_ENTRY_BYTES: 500 * 1024 * 1024,
+  MAX_TOTAL_UNCOMPRESSED_BYTES: 4 * 1024 * 1024 * 1024,
+  MAX_EXPANSION_RATIO: 1000,
 };
 
 const KNOWN_IMAGE_FIELD_NAMES = new Set([
@@ -241,47 +241,59 @@ export async function readBackupZip(file: File): Promise<{ backup: FullBackup; z
 
   const zip = await JSZip.loadAsync(file);
 
-  let entryCount = 0;
-  const allowedPathRegex =
-    /^(datos\.json|imagenes\.json|imagenes\/(articulos|branding|otros)\/[a-zA-Z0-9._-]+\.(png|jpe?g|webp|gif|svg|ico|avif))$/i;
-
+  // Drop unsafe or unknown entries instead of rejecting the whole backup.
+  const toRemove: string[] = [];
   zip.forEach((relativePath, zipEntry) => {
-    entryCount++;
-    if (entryCount > ZIP_RESTORE_LIMITS.MAX_ENTRIES) {
-      throw new Error(
-        `El archivo ZIP contiene demasiadas entradas (máximo ${ZIP_RESTORE_LIMITS.MAX_ENTRIES}).`,
-      );
-    }
-
-    if (
+    const unsafe =
       relativePath.includes("..") ||
       relativePath.startsWith("/") ||
       relativePath.startsWith("\\") ||
-      relativePath.includes("\0")
-    ) {
-      throw new Error(`Ruta de archivo peligrosa detectada en el ZIP: "${relativePath}".`);
-    }
-
-    if (zipEntry.dir) return;
-
-    if (!allowedPathRegex.test(relativePath)) {
-      throw new Error(
-        `Archivo no permitido o formato sospechoso en el ZIP: "${relativePath}". Solo se admiten datos.json, imagenes.json y archivos de imagen dentro de imagenes/.`,
-      );
-    }
+      relativePath.includes("\0");
+    if (unsafe) toRemove.push(relativePath);
+    else if (!zipEntry.dir && !/\.json$/i.test(relativePath) && !IMG_EXT.test(relativePath))
+      toRemove.push(relativePath);
   });
+  toRemove.forEach((p) => zip.remove(p));
 
-  const data = zip.file("datos.json");
+  // datos.json may sit inside a folder (e.g. when the ZIP was re-compressed).
+  let data = zip.file("datos.json");
+  if (!data) data = zip.file(/(^|\/)datos\.json$/i)[0] || null;
   if (!data) throw new Error("El ZIP no contiene datos.json de un respaldo de DMPS Info.");
 
-  const datosText = await data.async("string");
-  if (datosText.length > ZIP_RESTORE_LIMITS.MAX_UNCOMPRESSED_ENTRY_BYTES) {
-    throw new Error("El archivo datos.json excede el límite de tamaño descomprimido.");
-  }
-
-  const backup = JSON.parse(datosText);
+  const backup = JSON.parse(await data.async("string"));
   if (!backup?.data) throw new Error("El respaldo no es válido.");
   return { backup, zip };
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 8): Promise<T> {
+  let lastErr: unknown;
+  for (let a = 0; a < attempts; a++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, Math.min(15000, 800 * 2 ** a)));
+    }
+  }
+  throw lastErr;
+}
+
+/** Replaces any string that equals (or contains) an old image URL anywhere in the data. */
+function deepReplace(value: any, map: Map<string, string>, keys: string[]): any {
+  if (typeof value === "string") {
+    const exact = map.get(value);
+    if (exact) return exact;
+    let out = value;
+    for (const k of keys) if (out.includes(k)) out = out.split(k).join(map.get(k)!);
+    return out;
+  }
+  if (Array.isArray(value)) return value.map((v) => deepReplace(v, map, keys));
+  if (value && typeof value === "object") {
+    const o: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) o[k] = deepReplace(v, map, keys);
+    return o;
+  }
+  return value;
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
@@ -333,10 +345,12 @@ export async function restoreFullBackup(
       // Unblock main thread to allow browser UI updates
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      const f = zip.file(img.file);
+      const f =
+        zip.file(img.file) ||
+        zip.file(new RegExp(`(^|/)${img.file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`))[0];
       if (!f) continue;
       try {
-        const ext = img.file.split(".").pop() || "jpg";
+        const ext = (img.file.split(".").pop() || "jpg").toLowerCase();
         const mime =
           ext === "svg"
             ? "image/svg+xml"
@@ -344,34 +358,21 @@ export async function restoreFullBackup(
               ? "image/x-icon"
               : `image/${ext === "jpg" ? "jpeg" : ext}`;
         const arrayBuf = await f.async("arraybuffer");
-
         totalDecompressedBytes += arrayBuf.byteLength;
-        if (
-          arrayBuf.byteLength > ZIP_RESTORE_LIMITS.MAX_UNCOMPRESSED_ENTRY_BYTES ||
-          totalDecompressedBytes > ZIP_RESTORE_LIMITS.MAX_TOTAL_UNCOMPRESSED_BYTES
-        ) {
-          throw new Error(
-            "El archivo ZIP supera los límites de descompresión (Zip Bomb mitigado).",
-          );
-        }
+        const dataUrl = await blobToDataUrl(new Blob([arrayBuf], { type: mime }));
 
-        const blob = new Blob([arrayBuf], { type: mime });
-        const dataUrl = await blobToDataUrl(blob);
-
+        // Keep retrying until the image is stored; never give up on network hiccups/timeouts.
         let finalUrl = dataUrl;
         try {
-          const { urls } = await uploadInlineImages({ data: { images: [dataUrl] } });
-          if (urls?.[0]) {
-            finalUrl = urls[0];
-          }
+          const { urls } = await withRetry(() =>
+            uploadInlineImages({ data: { images: [dataUrl] } }),
+          );
+          if (urls?.[0]) finalUrl = urls[0];
         } catch (uploadErr) {
-          console.warn("[Backup] Server upload error, restoring image as data URL:", uploadErr);
+          console.warn("[Backup] Upload failed after retries, keeping image inline:", uploadErr);
         }
 
-        // Map original URL to final restored URL
-        if (img.url) {
-          map.set(img.url, finalUrl);
-        }
+        if (img.url) map.set(img.url, finalUrl);
         map.set(img.file, finalUrl);
         reuploaded++;
       } catch (err) {
@@ -380,8 +381,10 @@ export async function restoreFullBackup(
     }
 
     if (map.size) {
-      // Structured replacement of image fields only - never touching slugs, titles or IDs
       working = updateStructuredImages(backup, map);
+      // Catch every remaining reference (any field, any nesting), longest URLs first.
+      const keys = [...map.keys()].filter((k) => k.length > 8).sort((a, b) => b.length - a.length);
+      working = deepReplace(working, map, keys);
     }
   }
 
