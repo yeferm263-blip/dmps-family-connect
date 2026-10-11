@@ -395,14 +395,23 @@ export async function restoreFullBackup(
   const res = await restorePublicContentBackup(working, onProgress);
   const errors = [...res.errors];
   let restored = res.restored;
-  for (const [table, rows] of Object.entries(working.config || {})) {
+    for (const [table, rows] of Object.entries(working.config || {})) {
     if (!rows?.length) continue;
     onProgress?.(`Restaurando ${table}…`);
-    const { error } = await supabase
-      .from(table as any)
-      .upsert(rows as any[], { onConflict: CONFIG_TABLES[table] || "id" });
-    if (error) errors.push(`${table}: ${error.message}`);
-    else restored += rows.length;
+    const conflict = CONFIG_TABLES[table] || "id";
+    const preparedRows: any[] = [];
+    for (const row of rows as any[]) {
+      preparedRows.push(await externalizeInlineImages(row));
+    }
+    const batchSize = table === "appearance_settings" || table === "help_settings" ? 1 : 3;
+    for (const part of chunkBySize(preparedRows, batchSize, 250_000)) {
+      const { error } = await supabase
+        .from(table as any)
+        .upsert(part, { onConflict: conflict });
+      if (error) errors.push(`${table}: ${error.message}`);
+      else restored += part.length;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
   }
   return { success: errors.length === 0, restored, removed: res.removed, reuploaded, errors };
 }
