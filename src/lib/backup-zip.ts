@@ -241,47 +241,59 @@ export async function readBackupZip(file: File): Promise<{ backup: FullBackup; z
 
   const zip = await JSZip.loadAsync(file);
 
-  let entryCount = 0;
-  const allowedPathRegex =
-    /^(datos\.json|imagenes\.json|imagenes\/(articulos|branding|otros)\/[a-zA-Z0-9._-]+\.(png|jpe?g|webp|gif|svg|ico|avif))$/i;
-
+  // Drop unsafe or unknown entries instead of rejecting the whole backup.
+  const toRemove: string[] = [];
   zip.forEach((relativePath, zipEntry) => {
-    entryCount++;
-    if (entryCount > ZIP_RESTORE_LIMITS.MAX_ENTRIES) {
-      throw new Error(
-        `El archivo ZIP contiene demasiadas entradas (máximo ${ZIP_RESTORE_LIMITS.MAX_ENTRIES}).`,
-      );
-    }
-
-    if (
+    const unsafe =
       relativePath.includes("..") ||
       relativePath.startsWith("/") ||
       relativePath.startsWith("\\") ||
-      relativePath.includes("\0")
-    ) {
-      throw new Error(`Ruta de archivo peligrosa detectada en el ZIP: "${relativePath}".`);
-    }
-
-    if (zipEntry.dir) return;
-
-    if (!allowedPathRegex.test(relativePath)) {
-      throw new Error(
-        `Archivo no permitido o formato sospechoso en el ZIP: "${relativePath}". Solo se admiten datos.json, imagenes.json y archivos de imagen dentro de imagenes/.`,
-      );
-    }
+      relativePath.includes("\0");
+    if (unsafe) toRemove.push(relativePath);
+    else if (!zipEntry.dir && !/\.json$/i.test(relativePath) && !IMG_EXT.test(relativePath))
+      toRemove.push(relativePath);
   });
+  toRemove.forEach((p) => zip.remove(p));
 
-  const data = zip.file("datos.json");
+  // datos.json may sit inside a folder (e.g. when the ZIP was re-compressed).
+  let data = zip.file("datos.json");
+  if (!data) data = zip.file(/(^|\/)datos\.json$/i)[0] || null;
   if (!data) throw new Error("El ZIP no contiene datos.json de un respaldo de DMPS Info.");
 
-  const datosText = await data.async("string");
-  if (datosText.length > ZIP_RESTORE_LIMITS.MAX_UNCOMPRESSED_ENTRY_BYTES) {
-    throw new Error("El archivo datos.json excede el límite de tamaño descomprimido.");
-  }
-
-  const backup = JSON.parse(datosText);
+  const backup = JSON.parse(await data.async("string"));
   if (!backup?.data) throw new Error("El respaldo no es válido.");
   return { backup, zip };
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts = 8): Promise<T> {
+  let lastErr: unknown;
+  for (let a = 0; a < attempts; a++) {
+    try {
+      return await fn();
+    } catch (e) {
+      lastErr = e;
+      await new Promise((r) => setTimeout(r, Math.min(15000, 800 * 2 ** a)));
+    }
+  }
+  throw lastErr;
+}
+
+/** Replaces any string that equals (or contains) an old image URL anywhere in the data. */
+function deepReplace(value: any, map: Map<string, string>, keys: string[]): any {
+  if (typeof value === "string") {
+    const exact = map.get(value);
+    if (exact) return exact;
+    let out = value;
+    for (const k of keys) if (out.includes(k)) out = out.split(k).join(map.get(k)!);
+    return out;
+  }
+  if (Array.isArray(value)) return value.map((v) => deepReplace(v, map, keys));
+  if (value && typeof value === "object") {
+    const o: Record<string, any> = {};
+    for (const [k, v] of Object.entries(value)) o[k] = deepReplace(v, map, keys);
+    return o;
+  }
+  return value;
 }
 
 function blobToDataUrl(blob: Blob): Promise<string> {
