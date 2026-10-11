@@ -389,6 +389,9 @@ export async function restoreFullBackup(
     }
   }
 
+    onProgress?.("Preparando imágenes incrustadas…");
+  working = await externalizeInlineImages(working);
+
   const res = await restorePublicContentBackup(working, onProgress);
   const errors = [...res.errors];
   let restored = res.restored;
