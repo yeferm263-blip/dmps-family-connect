@@ -7,6 +7,7 @@ import {
   type PublicContentBackup,
 } from "@/lib/public-content-reset";
 import { uploadInlineImages } from "@/lib/media-upload.functions";
+import { externalizeInlineImages } from "@/lib/externalize-images";
 
 /** Site-wide configuration tables included in a full ZIP backup (conflict column). */
 const CONFIG_TABLES: Record<string, string> = {
