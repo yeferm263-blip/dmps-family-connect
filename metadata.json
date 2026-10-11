@@ -1,0 +1,6 @@
+{
+  "name": "DMPS Family Connect",
+  "description": "Biblioteca pública de información y recursos oficiales para las familias de Des Moines Public Schools (DMPS).",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,62 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791240778860,
+      "tag": "0000_core_dmps_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791241027615,
+      "tag": "0001_analytics_podcast_branding",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791248993930,
+      "tag": "0002_contacts_avatar_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791485434186,
+      "tag": "0003_core_dmps_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791485642817,
+      "tag": "0004_restore_analytics_podcast_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791506030254,
+      "tag": "0005_fix_programs_activities_columns",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791506534418,
+      "tag": "0006_announcements_show_in_ticker",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791742890836,
+      "tag": "0007_core_dmps_tables",
+      "breakpoints": true
+    }
+  ]
+}
