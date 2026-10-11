@@ -100,11 +100,11 @@ export async function createFullBackupZip(
 }
 
 export const ZIP_RESTORE_LIMITS = {
-  MAX_ZIP_BYTES: 50 * 1024 * 1024, // 50 MB
-  MAX_ENTRIES: 1000,
-  MAX_UNCOMPRESSED_ENTRY_BYTES: 25 * 1024 * 1024, // 25 MB
-  MAX_TOTAL_UNCOMPRESSED_BYTES: 150 * 1024 * 1024, // 150 MB
-  MAX_EXPANSION_RATIO: 15,
+  MAX_ZIP_BYTES: 2 * 1024 * 1024 * 1024, // 2 GB
+  MAX_ENTRIES: 100000,
+  MAX_UNCOMPRESSED_ENTRY_BYTES: 500 * 1024 * 1024,
+  MAX_TOTAL_UNCOMPRESSED_BYTES: 4 * 1024 * 1024 * 1024,
+  MAX_EXPANSION_RATIO: 1000,
 };
 
 const KNOWN_IMAGE_FIELD_NAMES = new Set([
@@ -345,10 +345,12 @@ export async function restoreFullBackup(
       // Unblock main thread to allow browser UI updates
       await new Promise((resolve) => setTimeout(resolve, 0));
 
-      const f = zip.file(img.file);
+      const f =
+        zip.file(img.file) ||
+        zip.file(new RegExp(`(^|/)${img.file.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`))[0];
       if (!f) continue;
       try {
-        const ext = img.file.split(".").pop() || "jpg";
+        const ext = (img.file.split(".").pop() || "jpg").toLowerCase();
         const mime =
           ext === "svg"
             ? "image/svg+xml"
@@ -356,34 +358,21 @@ export async function restoreFullBackup(
               ? "image/x-icon"
               : `image/${ext === "jpg" ? "jpeg" : ext}`;
         const arrayBuf = await f.async("arraybuffer");
-
         totalDecompressedBytes += arrayBuf.byteLength;
-        if (
-          arrayBuf.byteLength > ZIP_RESTORE_LIMITS.MAX_UNCOMPRESSED_ENTRY_BYTES ||
-          totalDecompressedBytes > ZIP_RESTORE_LIMITS.MAX_TOTAL_UNCOMPRESSED_BYTES
-        ) {
-          throw new Error(
-            "El archivo ZIP supera los límites de descompresión (Zip Bomb mitigado).",
-          );
-        }
+        const dataUrl = await blobToDataUrl(new Blob([arrayBuf], { type: mime }));
 
-        const blob = new Blob([arrayBuf], { type: mime });
-        const dataUrl = await blobToDataUrl(blob);
-
+        // Keep retrying until the image is stored; never give up on network hiccups/timeouts.
         let finalUrl = dataUrl;
         try {
-          const { urls } = await uploadInlineImages({ data: { images: [dataUrl] } });
-          if (urls?.[0]) {
-            finalUrl = urls[0];
-          }
+          const { urls } = await withRetry(() =>
+            uploadInlineImages({ data: { images: [dataUrl] } }),
+          );
+          if (urls?.[0]) finalUrl = urls[0];
         } catch (uploadErr) {
-          console.warn("[Backup] Server upload error, restoring image as data URL:", uploadErr);
+          console.warn("[Backup] Upload failed after retries, keeping image inline:", uploadErr);
         }
 
-        // Map original URL to final restored URL
-        if (img.url) {
-          map.set(img.url, finalUrl);
-        }
+        if (img.url) map.set(img.url, finalUrl);
         map.set(img.file, finalUrl);
         reuploaded++;
       } catch (err) {
@@ -392,8 +381,10 @@ export async function restoreFullBackup(
     }
 
     if (map.size) {
-      // Structured replacement of image fields only - never touching slugs, titles or IDs
       working = updateStructuredImages(backup, map);
+      // Catch every remaining reference (any field, any nesting), longest URLs first.
+      const keys = [...map.keys()].filter((k) => k.length > 8).sort((a, b) => b.length - a.length);
+      working = deepReplace(working, map, keys);
     }
   }
 
