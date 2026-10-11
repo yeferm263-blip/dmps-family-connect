@@ -8,16 +8,29 @@ export async function externalizeInlineImages<T>(value: T): Promise<T> {
   const found = Array.from(new Set(json.match(DATA_IMG) || []));
   if (!found.length) return value;
   const map = new Map<string, string>();
-  for (let i = 0; i < found.length; i += 5) {
-    const batch = found.slice(i, i + 5);
-    try {
-      const { urls } = await uploadInlineImages({ data: { images: batch } });
-      batch.forEach((b, j) => map.set(b, urls[j] ?? b));
-    } catch (e) {
-      console.warn("[media] upload failed, keeping inline image", e);
+  const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  for (let i = 0; i < found.length; i += 3) {
+    const batch = found.slice(i, i + 3);
+    let uploaded: string[] | undefined;
+    for (let attempt = 0; attempt < 6 && !uploaded; attempt++) {
+      try {
+        const result = await uploadInlineImages({ data: { images: batch } });
+        if (result.urls?.length === batch.length && result.urls.every(Boolean)) {
+          uploaded = result.urls;
+        }
+      } catch (e) {
+        console.warn(`[media] inline image upload attempt ${attempt + 1} failed`, e);
+      }
+      if (!uploaded && attempt < 5) await wait(Math.min(8000, 500 * 2 ** attempt));
     }
+
+    batch.forEach((original, index) => {
+      // A failed upload must never inject megabytes into a database row.
+      map.set(original, uploaded?.[index] || "[imagen no disponible]");
+    });
   }
-  if (!map.size) return value;
-  const out = json.replace(DATA_IMG, (m) => map.get(m) ?? m);
+
+  const out = json.replace(DATA_IMG, (match) => map.get(match) || "[imagen no disponible]");
   return JSON.parse(out) as T;
 }
