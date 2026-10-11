@@ -30,21 +30,18 @@ async function storeDataUrl(admin: any, dataUrl: string): Promise<string> {
     .from("ai-uploads")
     .upload(path, bytes, { contentType: mime, upsert: true });
 
-  if (error && (error.message?.includes("bucket") || (error as any).statusCode === 404)) {
-    try {
-      await admin.storage.createBucket("ai-uploads", { public: true });
-      const retry = await admin.storage
-        .from("ai-uploads")
-        .upload(path, bytes, { contentType: mime, upsert: true });
-      error = retry.error;
-    } catch {
-      // ignore bucket creation error
-    }
+  if (error && (error.message?.toLowerCase().includes("bucket") || (error as any).statusCode === 404 || (error as any).statusCode === "404")) {
+    // Private folder: files are served through /api/public/media.
+    await admin.storage.createBucket("ai-uploads", { public: false }).catch(() => undefined);
+    const retry = await admin.storage
+      .from("ai-uploads")
+      .upload(path, bytes, { contentType: mime, upsert: true });
+    error = retry.error;
   }
 
   if (error) {
     console.error("[media] upload error", error.message);
-    return dataUrl;
+    throw new Error(`No se pudo guardar la imagen: ${error.message}`);
   }
   return `/api/public/media/${path}`;
 }
