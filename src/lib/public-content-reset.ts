@@ -561,7 +561,7 @@ function chunk<T>(arr: T[], size: number): T[][] {
  * 2. Removes records created after the backup (child tables first).
  */
 /** Splits rows into batches limited by both count and approximate payload size. */
-function chunkBySize(rows: any[], maxRows: number, maxBytes: number): any[][] {
+export function chunkBySize(rows: any[], maxRows: number, maxBytes: number): any[][] {
   const out: any[][] = [];
   let cur: any[] = [];
   let bytes = 0;
@@ -579,9 +579,68 @@ function chunkBySize(rows: any[], maxRows: number, maxBytes: number): any[][] {
   return out;
 }
 
-/** Upserts a batch; on failure (e.g. statement timeout) splits it and retries smaller pieces. */
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Conflict column per table (tables with a natural unique key other than id). */
+export const RESTORE_CONFLICT: Record<string, string> = {
+  help_settings: "setting_key",
+  site_settings: "key",
+};
+
+/** Columns larger than this are written one by one in their own small update. */
+const HEAVY_FIELD_BYTES = 20_000;
+
+/**
+ * Writes one row in small steps so no single statement can hit the database time limit:
+ * first the light columns, then each heavy column (long text, block lists, image maps) alone.
+ * Every step is retried with growing pauses.
+ */
+export async function writeRowInSteps(
+  table: string,
+  row: Record<string, any>,
+  conflict = "id",
+): Promise<string | null> {
+  const key = row[conflict];
+  const light: Record<string, any> = {};
+  const heavy: [string, any][] = [];
+  for (const [k, v] of Object.entries(row)) {
+    if (k !== conflict && v != null && JSON.stringify(v).length > HEAVY_FIELD_BYTES) heavy.push([k, v]);
+    else light[k] = v;
+  }
+
+  let lastError = "";
+  const attempt = async (fn: () => PromiseLike<{ error: any }>) => {
+    for (let a = 0; a < 8; a++) {
+      const { error } = await fn();
+      if (!error) return true;
+      lastError = error.message;
+      // Real data conflicts never fix themselves by retrying.
+      if (!/timeout|fetch|network|503|502|504|connection|rate/i.test(error.message)) return false;
+      await sleep(Math.min(15000, 700 * 2 ** a));
+    }
+    return false;
+  };
+
+  const ok = await attempt(() =>
+    supabase.from(table as any).upsert(light as any, { onConflict: conflict }),
+  );
+  if (!ok) return lastError;
+  for (const [k, v] of heavy) {
+    const done = await attempt(() =>
+      supabase
+        .from(table as any)
+        .update({ [k]: v } as any)
+        .eq(conflict, key),
+    );
+    if (!done) return `${k}: ${lastError}`;
+  }
+  return null;
+}
+
+/** Upserts a batch; on failure (e.g. statement timeout) splits it and writes rows in small steps. */
 async function upsertAdaptive(table: string, rows: any[]): Promise<{ ok: number; errors: string[] }> {
-  const { error } = await supabase.from(table as any).upsert(rows, { onConflict: "id" });
+  const conflict = RESTORE_CONFLICT[table] || "id";
+  const { error } = await supabase.from(table as any).upsert(rows, { onConflict: conflict });
   if (!error) return { ok: rows.length, errors: [] };
   if (rows.length > 1) {
     const mid = Math.ceil(rows.length / 2);
@@ -589,10 +648,9 @@ async function upsertAdaptive(table: string, rows: any[]): Promise<{ ok: number;
     const b = await upsertAdaptive(table, rows.slice(mid));
     return { ok: a.ok + b.ok, errors: [...a.errors, ...b.errors] };
   }
-  // Single row: retry once (large embedded photos can hit a transient timeout).
-  const retry = await supabase.from(table as any).upsert(rows, { onConflict: "id" });
-  if (!retry.error) return { ok: 1, errors: [] };
-  return { ok: 0, errors: [`${rows[0]?.slug || rows[0]?.id}: ${retry.error.message}`] };
+  const err = await writeRowInSteps(table, rows[0], conflict);
+  if (!err) return { ok: 1, errors: [] };
+  return { ok: 0, errors: [`${rows[0]?.slug || rows[0]?.id}: ${err}`] };
 }
 
 export async function restorePublicContentBackup(
@@ -607,10 +665,23 @@ export async function restorePublicContentBackup(
     const rows = ((backup.data as any)[table] || []) as any[];
     if (!rows.length) continue;
     onProgress?.(`Restaurando ${table}…`);
-        const maxRows = table === "articles" || table === "article_translations" ? 3 : 50;
-    for (const part of chunkBySize(rows, maxRows, 250_000)) {
+    const heavyTable = table === "articles" || table === "article_translations";
+    if (heavyTable) {
+      // Articles go one at a time, in small steps, so none can time out.
+      let n = 0;
+      for (const row of rows) {
+        n++;
+        onProgress?.(`Restaurando ${table} ${n}/${rows.length}…`);
+        const err = await writeRowInSteps(table, row);
+        if (err) errors.push(`${table}: ${row?.slug || row?.id}: ${err}`);
+        else restored++;
+        await sleep(80);
+      }
+      continue;
+    }
+    for (const part of chunkBySize(rows, 50, 250_000)) {
       const res = await upsertAdaptive(table, part);
-      await new Promise((resolve) => setTimeout(resolve, 150));
+      await sleep(150);
       restored += res.ok;
       errors.push(...res.errors.map((m) => `${table}: ${m}`));
     }
