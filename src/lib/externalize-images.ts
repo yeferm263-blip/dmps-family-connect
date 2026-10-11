@@ -9,7 +9,7 @@ const DATA_IMG = /data:image\/[a-zA-Z0-9.+-]+;base64,(?:[A-Za-z0-9+/=]|\\[rn]|\s
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function cleanDataUrl(raw: string): string {
-  return raw.replace(/\\[rn]|\s/g, "").replace(/=+(?=[^=])/g, "");
+  return raw.replace(/\\[rn]|\s/g, "");
 }
 
 async function uploadOne(dataUrl: string, attempts = 10): Promise<string | null> {

@@ -96,7 +96,7 @@ export const compactStoredMedia = createServerFn({ method: "POST" })
         const found = Array.from(new Set(json.match(DATA_IMG) || []));
         if (!found.length || row.id == null) continue;
         const map = new Map<string, string>();
-        for (const f of found) map.set(f, await storeDataUrl(admin, f));
+        for (const f of found) map.set(f, await storeDataUrl(admin, f).catch(() => f));
         const next = JSON.parse(json.replace(DATA_IMG, (m) => map.get(m) ?? m));
         const changes: Record<string, unknown> = {};
         for (const k of Object.keys(next)) {
