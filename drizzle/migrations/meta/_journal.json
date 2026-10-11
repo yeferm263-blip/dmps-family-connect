@@ -50,6 +50,13 @@
       "when": 1791506534418,
       "tag": "0006_announcements_show_in_ticker",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791742890836,
+      "tag": "0007_core_dmps_tables",
+      "breakpoints": true
     }
   ]
 }
