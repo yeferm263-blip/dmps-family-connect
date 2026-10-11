@@ -2,12 +2,13 @@
 import JSZip from "jszip";
 import { supabase } from "@/lib/db";
 import {
+  chunkBySize,
   createPublicContentBackup,
   restorePublicContentBackup,
+  writeRowInSteps,
   type PublicContentBackup,
 } from "@/lib/public-content-reset";
-import { uploadInlineImages } from "@/lib/media-upload.functions";
-import { externalizeInlineImages } from "@/lib/externalize-images";
+import { externalizeInlineImages, storeInlineImage } from "@/lib/externalize-images";
 
 /** Site-wide configuration tables included in a full ZIP backup (conflict column). */
 const CONFIG_TABLES: Record<string, string> = {
@@ -362,19 +363,15 @@ export async function restoreFullBackup(
         totalDecompressedBytes += arrayBuf.byteLength;
         const dataUrl = await blobToDataUrl(new Blob([arrayBuf], { type: mime }));
 
-        // Keep retrying until the image is stored; never give up on network hiccups/timeouts.
-        let finalUrl = dataUrl;
-        try {
-          const { urls } = await withRetry(() =>
-            uploadInlineImages({ data: { images: [dataUrl] } }),
-          );
-          if (urls?.[0]) finalUrl = urls[0];
-        } catch (uploadErr) {
-          console.warn("[Backup] Upload failed after retries, keeping image inline:", uploadErr);
+        // Keep retrying until the image is stored (shrinks it as a last resort).
+        const stored = await storeInlineImage(dataUrl);
+        if (!stored) {
+          console.warn("[Backup] Image could not be stored after retries:", img.file);
+          continue;
         }
 
-        if (img.url) map.set(img.url, finalUrl);
-        map.set(img.file, finalUrl);
+        if (img.url) map.set(img.url, stored);
+        map.set(img.file, stored);
         reuploaded++;
       } catch (err) {
         console.error("[Backup] Error restoring image file:", img.file, err);
@@ -389,13 +386,13 @@ export async function restoreFullBackup(
     }
   }
 
-    onProgress?.("Preparando imágenes incrustadas…");
+  onProgress?.("Preparando imágenes incrustadas…");
   working = await externalizeInlineImages(working);
 
   const res = await restorePublicContentBackup(working, onProgress);
   const errors = [...res.errors];
   let restored = res.restored;
-    for (const [table, rows] of Object.entries(working.config || {})) {
+  for (const [table, rows] of Object.entries(working.config || {})) {
     if (!rows?.length) continue;
     onProgress?.(`Restaurando ${table}…`);
     const conflict = CONFIG_TABLES[table] || "id";
@@ -403,13 +400,19 @@ export async function restoreFullBackup(
     for (const row of rows as any[]) {
       preparedRows.push(await externalizeInlineImages(row));
     }
-    const batchSize = table === "appearance_settings" || table === "help_settings" ? 1 : 3;
-    for (const part of chunkBySize(preparedRows, batchSize, 250_000)) {
-      const { error } = await supabase
-        .from(table as any)
-        .upsert(part, { onConflict: conflict });
-      if (error) errors.push(`${table}: ${error.message}`);
-      else restored += part.length;
+    const heavy = table === "appearance_settings" || table === "help_settings";
+    for (const part of chunkBySize(preparedRows, heavy ? 1 : 20, 200_000)) {
+      const { error } = await supabase.from(table as any).upsert(part, { onConflict: conflict });
+      if (!error) {
+        restored += part.length;
+      } else {
+        // Fall back to writing each row in small steps (avoids time limits and key clashes).
+        for (const row of part) {
+          const err = await writeRowInSteps(table, row, conflict);
+          if (err) errors.push(`${table}: ${err}`);
+          else restored++;
+        }
+      }
       await new Promise((resolve) => setTimeout(resolve, 150));
     }
   }

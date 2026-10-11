@@ -16,3 +16,4 @@
 - Admin access is granted by rows in public.user_roles (role helpers like is_admin()/can_manage_content()); never store roles elsewhere.
 - Page-level visual assets are stored in the appearance_settings settings JSON so branding remains centrally managed without extra schema columns.
 - Share article-length normalization and visible Markdown word counting between the AI creator and its endpoint to keep controls and generation consistent.
+- Backup restores write article/config rows in small steps (light columns first, each heavy column alone) and store inline images as files first; the database's per-statement time limit cuts off large single writes.

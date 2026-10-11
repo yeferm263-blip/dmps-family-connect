@@ -30,21 +30,18 @@ async function storeDataUrl(admin: any, dataUrl: string): Promise<string> {
     .from("ai-uploads")
     .upload(path, bytes, { contentType: mime, upsert: true });
 
-  if (error && (error.message?.includes("bucket") || (error as any).statusCode === 404)) {
-    try {
-      await admin.storage.createBucket("ai-uploads", { public: true });
-      const retry = await admin.storage
-        .from("ai-uploads")
-        .upload(path, bytes, { contentType: mime, upsert: true });
-      error = retry.error;
-    } catch {
-      // ignore bucket creation error
-    }
+  if (error && (error.message?.toLowerCase().includes("bucket") || (error as any).statusCode === 404 || (error as any).statusCode === "404")) {
+    // Private folder: files are served through /api/public/media.
+    await admin.storage.createBucket("ai-uploads", { public: false }).catch(() => undefined);
+    const retry = await admin.storage
+      .from("ai-uploads")
+      .upload(path, bytes, { contentType: mime, upsert: true });
+    error = retry.error;
   }
 
   if (error) {
     console.error("[media] upload error", error.message);
-    return dataUrl;
+    throw new Error(`No se pudo guardar la imagen: ${error.message}`);
   }
   return `/api/public/media/${path}`;
 }
@@ -99,7 +96,7 @@ export const compactStoredMedia = createServerFn({ method: "POST" })
         const found = Array.from(new Set(json.match(DATA_IMG) || []));
         if (!found.length || row.id == null) continue;
         const map = new Map<string, string>();
-        for (const f of found) map.set(f, await storeDataUrl(admin, f));
+        for (const f of found) map.set(f, await storeDataUrl(admin, f).catch(() => f));
         const next = JSON.parse(json.replace(DATA_IMG, (m) => map.get(m) ?? m));
         const changes: Record<string, unknown> = {};
         for (const k of Object.keys(next)) {
