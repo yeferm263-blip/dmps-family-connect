@@ -57,6 +57,13 @@
       "when": 1791742890836,
       "tag": "0007_core_dmps_tables",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1791743671684,
+      "tag": "0008_analytics_podcast_branding",
+      "breakpoints": true
     }
   ]
 }
