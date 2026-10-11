@@ -13,7 +13,7 @@ import { externalizeInlineImages } from "@/lib/externalize-images";
 const CONFIG_TABLES: Record<string, string> = {
   appearance_settings: "id",
   site_settings: "key",
-  help_settings: "id",
+    help_settings: "setting_key",
   social_media_channels: "id",
   resources: "id",
   resource_translations: "id",
