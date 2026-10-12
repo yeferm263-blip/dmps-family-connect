@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+import { articleInCategory } from "@/lib/content";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
@@ -69,6 +70,7 @@ function TopicPage() {
   }, [slug, selectedSchool.id, lang]);
   const list = (articles.data ?? []).filter(
     (a) =>
+      articleInCategory(a, category?.id, category?.slug) ||
       a.category_id === category?.id ||
       a.category_id === category?.slug ||
       a.categories?.slug === category?.slug ||

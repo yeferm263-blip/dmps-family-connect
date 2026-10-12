@@ -1,3 +1,4 @@
+import { articleInCategory } from "@/lib/content";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 
@@ -73,7 +74,8 @@ function TopicsPage() {
               const loc = localizedCategory(cat, lang);
               const count = (articles.data ?? []).filter(
                 (a) =>
-                  a.category_id === cat.id ||
+                  articleInCategory(a, cat.id, cat.slug) ||
+      a.category_id === cat.id ||
                   a.category_id === cat.slug ||
                   a.categories?.slug === cat.slug ||
                   a.categories?.slug === cat.id,
