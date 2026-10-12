@@ -7,7 +7,6 @@ import { useState, useMemo } from "react";
 import type { ArticleRow, CategoryRow } from "@/lib/content";
 import { useLocalizedArticle } from "@/lib/content";
 import { useI18n } from "@/lib/i18n";
-import { ArticleReactionButton } from "@/components/article-reaction-button";
 
 export function ArticleCard({ article }: { article: ArticleRow; category?: CategoryRow | null }) {
   const { t, lang } = useI18n();
@@ -220,34 +219,24 @@ export function ArticleCard({ article }: { article: ArticleRow; category?: Categ
           </p>
         </div>
 
-        {/* Footer read link & reaction */}
+        {/* Footer read link */}
         <div
           className={`mt-6 pt-4 border-t flex items-center justify-between text-sm font-bold ${
             isDarkBg ? "border-white/20 text-white" : "border-border/60 text-primary"
           }`}
         >
-          <div className="flex items-center gap-2">
-            <span className="transition-transform duration-200 group-hover:translate-x-0.5">
-              {t("common.readMore")}
-            </span>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <ArticleReactionButton
-              articleId={article.id || article.slug}
-              articleTitle={locArticle.title}
-              variant="compact"
-            />
-            <span
-              className={`grid size-8 place-items-center rounded-xl transition-all duration-300 group-hover:translate-x-1.5 ${
-                isDarkBg
-                  ? "bg-white/20 text-white group-hover:bg-white group-hover:text-slate-900"
-                  : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground group-hover:shadow-md group-hover:shadow-primary/20"
-              }`}
-            >
-              <ArrowRight className="size-4" />
-            </span>
-          </div>
+          <span className="transition-transform duration-200 group-hover:translate-x-0.5">
+            {t("common.readMore")}
+          </span>
+          <span
+            className={`grid size-8 place-items-center rounded-xl transition-all duration-300 group-hover:translate-x-1.5 ${
+              isDarkBg
+                ? "bg-white/20 text-white group-hover:bg-white group-hover:text-slate-900"
+                : "bg-primary/10 text-primary group-hover:bg-primary group-hover:text-primary-foreground group-hover:shadow-md group-hover:shadow-primary/20"
+            }`}
+          >
+            <ArrowRight className="size-4" />
+          </span>
         </div>
       </div>
     </Link>

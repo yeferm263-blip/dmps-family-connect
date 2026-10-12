@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 
 import { ArticleBlocks } from "@/components/article-blocks";
 import { ArticleBottomNav } from "@/components/article-bottom-nav";
-import { ArticleReactionButton } from "@/components/article-reaction-button";
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -194,22 +193,14 @@ function ArticlePage() {
                 </span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2">
-                <ArticleReactionButton
-                  articleId={data?.id || slug}
-                  articleTitle={loc.title}
-                  variant="prominent"
-                />
-
-                <Button
-                  variant="outline"
-                  className="min-h-10 gap-2 rounded-xl text-xs font-bold"
-                  onClick={() => window.print()}
-                >
-                  <Printer className="size-3.5" aria-hidden="true" />
-                  {t("article.print")}
-                </Button>
-              </div>
+              <Button
+                variant="outline"
+                className="min-h-10 gap-2 rounded-xl text-xs font-bold"
+                onClick={() => window.print()}
+              >
+                <Printer className="size-3.5" aria-hidden="true" />
+                {t("article.print")}
+              </Button>
             </div>
 
             {loc.isFallback ? (

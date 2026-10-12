@@ -9,7 +9,6 @@ import { AnnouncementTicker } from "@/components/announcement-ticker";
 import { CategoryIcon } from "@/components/category-icon";
 import { TrustpilotReviewButton } from "@/components/help/trustpilot-review-button";
 import { NavigationIcon } from "@/components/navigation-icon";
-import { RequestClubModal } from "@/components/request-club-modal";
 
 import { openAppTutorial } from "@/components/onboarding-tutorial";
 import { LanguageSelector } from "@/components/language-selector";
@@ -871,7 +870,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
           </div>
           <nav aria-label="Footer">
             <h2 className="text-sm font-bold uppercase tracking-wide">{t("home.quickLinks")}</h2>
-            <ul className="mt-3 grid grid-cols-2 gap-x-5 gap-y-2 text-sm">
+            <ul className="mt-3 space-y-2 text-sm">
               {footerLinks.map((item) => {
                 const loc = localizedMenuItem(item, lang);
                 const isTut = item.path === "#tutorial" || item.path.startsWith("#");
@@ -883,7 +882,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
                       <button
                         type="button"
                         onClick={openAppTutorial}
-                        className="text-start hover:underline cursor-pointer text-foreground/80 hover:text-foreground text-xs sm:text-sm truncate block max-w-full"
+                        className="text-start hover:underline cursor-pointer text-foreground/80 hover:text-foreground"
                       >
                         {loc.label}
                       </button>
@@ -898,7 +897,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
                         href={item.path}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="hover:underline text-foreground/80 hover:text-foreground text-xs sm:text-sm truncate block max-w-full"
+                        className="hover:underline text-foreground/80 hover:text-foreground"
                       >
                         {loc.label}
                       </a>
@@ -910,7 +909,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
                   <li key={`ft-${item.id}`}>
                     <Link
                       to={item.path as any}
-                      className="hover:underline text-foreground/80 hover:text-foreground text-xs sm:text-sm truncate block max-w-full"
+                      className="hover:underline text-foreground/80 hover:text-foreground"
                     >
                       {loc.label}
                     </Link>
@@ -918,20 +917,6 @@ export function PublicShell({ children }: { children: ReactNode }) {
                 );
               })}
             </ul>
-
-            <div className="mt-4 pt-3 border-t border-border/60">
-              <RequestClubModal
-                defaultSchoolId={selectedSchool.id}
-                trigger={
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline cursor-pointer transition-colors"
-                  >
-                    <span>✨ Solicitar plaza para tu club</span>
-                  </button>
-                }
-              />
-            </div>
           </nav>
           <div>
             <div className="flex items-center justify-between">
