@@ -34,7 +34,7 @@ export function SiteLogo({
   const { data: queriedAppearance, refetch } = useQuery({
     queryKey: ["appearance"],
     queryFn: fetchAppearance,
-    staleTime: 5 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const appearance = realtimeAppearance ?? queriedAppearance;
