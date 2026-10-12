@@ -5,18 +5,10 @@ import { defineConfig } from "@lovable.dev/vite-tanstack-config";
 import { mcpPlugin } from "@lovable.dev/mcp-js/stacks/tanstack/vite";
 
 export default defineConfig({
-  nitro: {
-    preset: "node-server",
-  },
   tanstackStart: {
     server: { entry: "server" },
-    client: { entry: "client" },
   },
   vite: {
-    server: {
-      host: "0.0.0.0",
-      port: 3000,
-    },
     plugins: [mcpPlugin()],
     resolve: {
       alias: {
