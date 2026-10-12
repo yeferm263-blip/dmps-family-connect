@@ -457,7 +457,11 @@ export async function fetchPublishedArticles(
 
       const [artRes, trRes, catRes] = await Promise.all([
         query,
-        supabase
+        light
+          ? supabase
+              .from("article_translations")
+              .select("id, article_id, language_code, title, summary, updated_at")
+          : supabase
           .from("article_translations")
           .select(
             light

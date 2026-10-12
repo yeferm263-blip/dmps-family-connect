@@ -218,20 +218,6 @@ function RootComponent() {
     window.addEventListener("unhandledrejection", handleUnhandledRejection);
     window.addEventListener("error", handleError);
 
-    // Client-side non-blocking AdSense load after initial hydration
-    try {
-      const existingScript = document.querySelector('script[src*="pagead2.googlesyndication.com"]');
-      if (!existingScript) {
-        const adScript = document.createElement("script");
-        adScript.async = true;
-        adScript.src =
-          "https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4360884520548274";
-        adScript.crossOrigin = "anonymous";
-        document.head.appendChild(adScript);
-      }
-    } catch {
-      // ignore
-    }
 
     return () => {
       window.removeEventListener("unhandledrejection", handleUnhandledRejection);
