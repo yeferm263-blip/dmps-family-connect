@@ -97,8 +97,11 @@ export function PublicShell({ children }: { children: ReactNode }) {
     };
   }, [queryClient]);
 
-  const { data: categories } = useQuery({ queryKey: ["categories"], queryFn: fetchCategories });
   const { selectedSchool } = useSchool();
+  const { data: categories } = useQuery({
+    queryKey: ["categories", selectedSchool.id],
+    queryFn: () => fetchCategories(selectedSchool.id),
+  });
   const { data: announcements } = useQuery({
     queryKey: ["announcements", selectedSchool.id],
     queryFn: () => fetchActiveAnnouncements(selectedSchool.id),
