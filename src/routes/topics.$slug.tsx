@@ -9,7 +9,7 @@ import { CategoryIcon } from "@/components/category-icon";
 import { PublicShell } from "@/components/public-shell";
 import { ResourcesOverview } from "@/components/resources-overview";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchCategories, fetchPublishedArticles, localizedCategory } from "@/lib/content";
+import { articleInCategory, fetchCategories, fetchPublishedArticles, localizedCategory } from "@/lib/content";
 import { useI18n } from "@/lib/i18n";
 import { useSchool } from "@/lib/school";
 import { trackCategoryClick } from "@/analytics";
@@ -69,6 +69,7 @@ function TopicPage() {
   }, [slug, selectedSchool.id, lang]);
   const list = (articles.data ?? []).filter(
     (a) =>
+      articleInCategory(a, category?.id, category?.slug) ||
       a.category_id === category?.id ||
       a.category_id === category?.slug ||
       a.categories?.slug === category?.slug ||

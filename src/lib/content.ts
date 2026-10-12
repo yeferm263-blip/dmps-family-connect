@@ -216,6 +216,7 @@ export type ArticleRow = {
   slug: string;
   status: string;
   category_id: string | null;
+  category_ids?: string[] | null;
   school_id?: string | null;
   is_featured: boolean;
   published_at: string | null;
@@ -433,7 +434,7 @@ function enrichArticleRow(raw: Record<string, any>): ArticleRow {
 }
 
 const LIGHT_ARTICLE_COLUMNS =
-  "id, slug, title, summary, status, category_id, school_id, contact_id, card_banner_url, card_banners, card_bg, featured_image_url, featured_images, image_alt, is_featured, published_at, created_at, updated_at, starts_at, ends_at, scheduled_at, read_time_minutes, bottom_nav, official_url, source_name, verification_status, verified_at, last_verified_at, view_count";
+  "id, slug, title, summary, status, category_id, category_ids, school_id, contact_id, card_banner_url, card_banners, card_bg, featured_image_url, featured_images, image_alt, is_featured, published_at, created_at, updated_at, starts_at, ends_at, scheduled_at, read_time_minutes, bottom_nav, official_url, source_name, verification_status, verified_at, last_verified_at, view_count";
 
 export async function fetchPublishedArticles(
   categoryId?: string,
@@ -453,7 +454,7 @@ export async function fetchPublishedArticles(
         .select(light ? LIGHT_ARTICLE_COLUMNS : "*")
         .eq("status", "published")
         .order("published_at", { ascending: false });
-      if (categoryId) query = query.eq("category_id", categoryId);
+      if (categoryId) query = query.or(`category_id.eq.${categoryId},category_ids.cs.{${categoryId}}`);
 
       const [artRes, trRes, catRes] = await Promise.all([
         query,
@@ -1031,6 +1032,7 @@ export type FaqRow = {
   id: string;
   display_order: number;
   category_id: string | null;
+  category_ids?: string[] | null;
   school_id?: string | null;
   question?: string | null;
   answer?: string | null;
@@ -1144,7 +1146,7 @@ export function searchArticles(
   const q = query.trim().toLowerCase();
   const terms = q.split(/\s+/).filter(Boolean);
   return articles
-    .filter((a) => !categoryId || a.category_id === categoryId)
+    .filter((a) => !categoryId || articleInCategory(a, categoryId))
     .map((a) => {
       const loc = localizedArticle(a, lang);
       const haystackTitle = loc.title.toLowerCase();
@@ -1197,4 +1199,13 @@ export async function logPageView(articleId: string, lang: string) {
 export async function sendFeedback(articleId: string, wasHelpful: boolean) {
   trackArticleFeedback(articleId, wasHelpful);
   await supabase.from("feedback").insert({ article_id: articleId, was_helpful: wasHelpful });
+}
+
+/** True when the article belongs to the category as primary or additional category. */
+export function articleInCategory(
+  a: { category_id?: string | null; category_ids?: string[] | null },
+  ...keys: Array<string | null | undefined>
+): boolean {
+  const ids = [a.category_id, ...(a.category_ids ?? [])].filter(Boolean).map(String);
+  return keys.some((k) => !!k && ids.includes(String(k)));
 }

@@ -811,6 +811,11 @@ function ArticleStepEditorModal({
     return raw;
   });
   const [categoryId, setCategoryId] = useState(String(editingRow["category_id"] || ""));
+  const [extraCategoryIds, setExtraCategoryIds] = useState<string[]>(() =>
+    (Array.isArray(editingRow["category_ids"]) ? (editingRow["category_ids"] as unknown[]) : [])
+      .map(String)
+      .filter((id) => id && id !== String(editingRow["category_id"] || "")),
+  );
   const [isCreatingNewCategory, setIsCreatingNewCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
 
@@ -1063,6 +1068,9 @@ function ArticleStepEditorModal({
         id: articleId || `art_${Date.now()}`,
         slug: finalSlug,
         category_id: finalCategoryId || null,
+        category_ids: Array.from(
+          new Set([finalCategoryId, ...extraCategoryIds].filter(Boolean).map(String)),
+        ),
         school_id: schoolId === "all" ? null : schoolId || null,
         title: effectiveTitleEs,
         summary: effectiveSummaryEs,
@@ -1602,10 +1610,48 @@ function ArticleStepEditorModal({
                       </select>
                     </div>
 
+                    {/* Additional categories */}
+                    <div className="rounded-2xl border border-border/80 bg-card p-3.5 space-y-1.5">
+                      <label className="text-xs font-bold uppercase tracking-wider text-foreground block">
+                        Categorías adicionales
+                      </label>
+                      <p className="text-[11px] text-muted-foreground">
+                        El artículo también aparecerá en estas categorías.
+                      </p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {categoriesList
+                          .filter((cat) => String(cat.id) !== categoryId)
+                          .map((cat) => {
+                            const id = String(cat.id);
+                            const on = extraCategoryIds.includes(id);
+                            return (
+                              <button
+                                key={id}
+                                type="button"
+                                aria-pressed={on}
+                                onClick={() =>
+                                  setExtraCategoryIds((prev) =>
+                                    on ? prev.filter((x) => x !== id) : [...prev, id],
+                                  )
+                                }
+                                className={
+                                  on
+                                    ? "rounded-full border border-primary bg-primary px-2.5 py-1 text-xs font-semibold text-primary-foreground"
+                                    : "rounded-full border border-input bg-background px-2.5 py-1 text-xs font-semibold text-foreground hover:border-primary"
+                                }
+                              >
+                                {on ? "✓ " : "+ "}
+                                {String(cat.name)}
+                              </button>
+                            );
+                          })}
+                      </div>
+                    </div>
+
                     {/* Category */}
                     <div className="rounded-2xl border border-border/80 bg-card p-3.5 space-y-1.5">
                       <label className="text-xs font-bold uppercase tracking-wider text-foreground block">
-                        Categoría
+                        Categoría principal
                       </label>
                       {!isCreatingNewCategory ? (
                         <div className="flex gap-1.5">

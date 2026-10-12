@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { CategoryIcon } from "@/components/category-icon";
 import { PublicShell } from "@/components/public-shell";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchCategories, fetchPublishedArticles, localizedCategory } from "@/lib/content";
+import { articleInCategory, fetchCategories, fetchPublishedArticles, localizedCategory } from "@/lib/content";
 import { useI18n } from "@/lib/i18n";
 import { useSchool } from "@/lib/school";
 
@@ -73,7 +73,8 @@ function TopicsPage() {
               const loc = localizedCategory(cat, lang);
               const count = (articles.data ?? []).filter(
                 (a) =>
-                  a.category_id === cat.id ||
+                  articleInCategory(a, cat.id, cat.slug) ||
+      a.category_id === cat.id ||
                   a.category_id === cat.slug ||
                   a.categories?.slug === cat.slug ||
                   a.categories?.slug === cat.id,
