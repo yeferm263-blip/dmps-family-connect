@@ -58,7 +58,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useRemoveBg } from "@/lib/use-remove-bg";
 import { supabase } from "@/lib/db";
 import { useSchool } from "@/lib/school";
 import { deleteRow, listRows, logAudit, upsertRow, type Row } from "@/lib/admin";
@@ -878,7 +877,6 @@ function ArticleStepEditorModal({
   );
   const [imageAlt, setImageAlt] = useState(String(editingRow["image_alt"] || ""));
   const [isFeatured, setIsFeatured] = useState(Boolean(editingRow["is_featured"]));
-  const { isRemovingBg, removeBg } = useRemoveBg();
 
   const [isSaving, setIsSaving] = useState(false);
   const [isTranslatingWithAi, setIsTranslatingWithAi] = useState(false);
@@ -1435,7 +1433,7 @@ function ArticleStepEditorModal({
                       accept="image/*"
                     />
 
-                    {/* remove.bg Transparency Toggle & Action */}
+                    {/* Cover presentation only; removal belongs to inline images. */}
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-xl border border-border/70 bg-card/60">
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
@@ -1452,55 +1450,9 @@ function ArticleStepEditorModal({
                             </span>
                           )}
                         </div>
-                        <p className="text-[11px] text-muted-foreground">
-                          Elimina el fondo con remove.bg para que el gráfico quede recortado sobre
-                          la tarjeta.
-                        </p>
                       </div>
 
                       <div className="flex items-center gap-2 self-end sm:self-center">
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant="outline"
-                          disabled={
-                            isRemovingBg || !(cardBanners[coverLang]?.trim() || cardBanner?.trim())
-                          }
-                          onClick={async () => {
-                            const current =
-                              cardBanners[coverLang]?.trim() || cardBanner?.trim() || "";
-                            if (!current) {
-                              toast.error(
-                                "Sube o pega primero una portada para quitarle el fondo.",
-                              );
-                              return;
-                            }
-                            const transparentUrl = await removeBg(current);
-                            if (transparentUrl) {
-                              setCardBanners((prev) => ({
-                                ...prev,
-                                [coverLang]: transparentUrl,
-                              }));
-                              if (coverLang === "es" || !cardBanner) {
-                                setCardBanner(transparentUrl);
-                              }
-                              setTransparentBg(true);
-                            }
-                          }}
-                          className="h-8 rounded-lg text-xs font-bold gap-1.5 bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-300 dark:border-sky-800 hover:bg-sky-500/20"
-                        >
-                          {isRemovingBg ? (
-                            <>
-                              <Loader2 className="size-3.5 animate-spin" />
-                              <span>Eliminando fondo...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Wand2 className="size-3.5" />
-                              <span>🪄 Quitar fondo</span>
-                            </>
-                          )}
-                        </Button>
                         <Switch
                           id="transparent-bg-toggle"
                           checked={transparentBg}

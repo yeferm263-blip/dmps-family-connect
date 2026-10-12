@@ -35,6 +35,7 @@ import {
   ArrowRight,
   ExternalLink,
   Unlink,
+  Loader2,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,6 +52,8 @@ import { FileUploadInput } from "@/components/file-upload-input";
 import { ImageAdjuster } from "@/components/image-adjuster";
 import { compressImageFile, detectImageTransparency } from "@/lib/image-compression";
 import { toast } from "sonner";
+import { useRemoveBg } from "@/lib/use-remove-bg";
+import { removeArticleImageBackground } from "@/lib/article-image-background";
 import {
   CanvaDirectOverlay,
   applyCanvaStateToImgElement,
@@ -133,6 +136,7 @@ export function VisualRichEditor({
 
   // In-Editor Image Selection & Canva Direct Editing
   const [selectedImageEl, setSelectedImageEl] = useState<HTMLImageElement | null>(null);
+  const { isRemovingBg, removeBg } = useRemoveBg();
   const [editorImages, setEditorImages] = useState<HTMLImageElement[]>([]);
   const [, setImageStateTick] = useState(0);
   const editorContainerRef = useRef<HTMLDivElement>(null);
@@ -651,39 +655,13 @@ export function VisualRichEditor({
     }
   };
 
-  // Toggle transparency (Sin Fondo) for currently selected in-article image
-  const toggleSelectedImageTransparency = () => {
-    if (!selectedImageEl) return;
-    const isCurrent =
-      selectedImageEl.dataset.transparent === "true" ||
-      selectedImageEl.getAttribute("data-transparent") === "true";
-    const next = !isCurrent;
-    selectedImageEl.dataset.transparent = next ? "true" : "false";
-
-    const figure = selectedImageEl.closest("figure");
-    if (next) {
-      selectedImageEl.style.background = "transparent";
-      selectedImageEl.style.backgroundColor = "transparent";
-      selectedImageEl.style.border = "none";
-      selectedImageEl.style.boxShadow = "none";
-      selectedImageEl.style.filter = "drop-shadow(0 4px 10px rgba(0,0,0,0.12))";
-      selectedImageEl.style.objectFit = "contain";
-      if (figure) figure.dataset.transparent = "true";
-      toast.success("✨ Imagen del artículo configurada sin fondo (transparente)");
-    } else {
-      selectedImageEl.style.background = "";
-      selectedImageEl.style.backgroundColor = "";
-      selectedImageEl.style.border = "1px solid rgba(0,0,0,0.1)";
-      selectedImageEl.style.borderRadius = "1rem";
-      selectedImageEl.style.boxShadow = "0 4px 12px rgba(0,0,0,0.08)";
-      selectedImageEl.style.filter = "none";
-      selectedImageEl.style.objectFit = "cover";
-      if (figure) delete figure.dataset.transparent;
-      toast.info("Imagen con marco y fondo estándar");
+  const removeSelectedImageBackground = async () => {
+    const editor = editorRef.current;
+    const image = selectedImageEl;
+    if (!editor || !image || isRemovingBg) return;
+    if (await removeArticleImageBackground(editor, image, removeBg)) {
+      handleInput();
     }
-
-    handleInput();
-    setImageStateTick((t) => t + 1);
   };
 
   // Quick toolbar image sizing & align presets
@@ -1425,33 +1403,20 @@ export function VisualRichEditor({
                   </button>
                 )}
 
-                {/* Toggle Sin Fondo (Transparente) */}
-                <button
+                {/* Remove the selected image's actual background with remove.bg. */}
+                <Button
                   type="button"
-                  onClick={toggleSelectedImageTransparency}
-                  className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold transition-all ${
-                    selectedImageEl.dataset.transparent === "true" ||
-                    selectedImageEl.getAttribute("data-transparent") === "true"
-                      ? "border border-amber-500/60 bg-amber-500/20 text-amber-800 dark:text-amber-200 shadow-2xs"
-                      : "border border-border bg-background text-foreground hover:bg-muted"
-                  }`}
-                  title="Activar/Desactivar modo sin fondo (ideal para imágenes transparentes, logos, stickers e ilustraciones en el artículo)"
+                  variant="outline"
+                  size="sm"
+                  disabled={isRemovingBg}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onClick={removeSelectedImageBackground}
+                  className="h-7 gap-1 rounded-md px-2 text-[11px] font-bold"
+                  title="Quitar el fondo de la imagen seleccionada con remove.bg"
                 >
-                  <Sparkles
-                    className={`size-3.5 ${
-                      selectedImageEl.dataset.transparent === "true" ||
-                      selectedImageEl.getAttribute("data-transparent") === "true"
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-muted-foreground"
-                    }`}
-                  />
-                  <span>
-                    {selectedImageEl.dataset.transparent === "true" ||
-                    selectedImageEl.getAttribute("data-transparent") === "true"
-                      ? "Sin Fondo ✓"
-                      : "Sin Fondo"}
-                  </span>
-                </button>
+                  {isRemovingBg ? <Loader2 className="size-3.5 animate-spin" /> : <Sparkles className="size-3.5" />}
+                  <span>{isRemovingBg ? "Eliminando fondo..." : "Quitar fondo"}</span>
+                </Button>
 
                 {/* Link to Article or URL */}
                 <button
