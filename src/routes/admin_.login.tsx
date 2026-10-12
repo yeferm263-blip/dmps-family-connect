@@ -1,5 +1,5 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Lock, ShieldCheck, UserPlus } from "lucide-react";
+import { Lock, ShieldCheck, UserPlus, KeyRound } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { SiteLogo } from "@/components/site-logo";
@@ -282,6 +282,20 @@ function AdminLogin() {
             <span>Crear una cuenta</span>
           </Link>
         </Button>
+
+        {/* Acceso para Líderes de Club Escolar */}
+        <div className="mt-4 rounded-2xl border border-primary/20 bg-primary/5 p-4 text-center space-y-1.5">
+          <p className="text-xs font-semibold text-foreground">
+            ¿Eres Líder o Coordinador de un Club Escolar?
+          </p>
+          <Link
+            to="/admin/club-portal"
+            className="inline-flex items-center gap-1.5 text-xs font-bold text-primary hover:underline"
+          >
+            <KeyRound className="size-3.5" />
+            <span>Acceder con Código de Club →</span>
+          </Link>
+        </div>
 
         <div className="mt-6 pt-4 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">

@@ -27,7 +27,8 @@ function AdminLayout() {
 
   if (
     location.pathname.startsWith("/admin/login") ||
-    location.pathname.startsWith("/admin/registro")
+    location.pathname.startsWith("/admin/registro") ||
+    location.pathname.startsWith("/admin/club-portal")
   ) {
     return <Outlet />;
   }

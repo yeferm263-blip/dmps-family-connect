@@ -1,6 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useRef } from "react";
-import { ExternalLink, Info, TriangleAlert, CircleCheck, Sparkles } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import {
+  ExternalLink,
+  Info,
+  TriangleAlert,
+  CircleCheck,
+  Sparkles,
+  Calendar,
+  Clock,
+  MapPin,
+  X,
+  ZoomIn,
+} from "lucide-react";
 
 import type { Block } from "@/lib/content";
 import { useI18n } from "@/lib/i18n";
@@ -8,6 +19,199 @@ import {
   CanvaSvgMaskDefs,
   syncArticleCanvasMinHeight,
 } from "@/components/canva-image-direct-editor";
+
+function normalizeVideoEmbed(url: string): { type: "iframe" | "video"; embedUrl: string } {
+  if (!url) return { type: "iframe", embedUrl: "" };
+  const trimmed = url.trim();
+
+  // Direct video file (mp4, webm, ogg, mov)
+  if (/\.(mp4|webm|ogg|mov)(\?.*)?$/i.test(trimmed)) {
+    return { type: "video", embedUrl: trimmed };
+  }
+
+  // YouTube URLs (watch, embed, short, youtu.be)
+  const ytMatch = trimmed.match(
+    /(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i,
+  );
+  if (ytMatch?.[1]) {
+    return {
+      type: "iframe",
+      embedUrl: `https://www.youtube-nocookie.com/embed/${ytMatch[1]}?rel=0`,
+    };
+  }
+
+  // Vimeo URLs
+  const vimeoMatch = trimmed.match(
+    /vimeo\.com\/(?:channels\/(?:\w+\/)?|groups\/(?:[^\/]*)\/videos\/|album\/(?:\d+)\/video\/|video\/|)(\d+)/i,
+  );
+  if (vimeoMatch?.[1]) {
+    return {
+      type: "iframe",
+      embedUrl: `https://player.vimeo.com/video/${vimeoMatch[1]}?title=0&byline=0&portrait=0`,
+    };
+  }
+
+  return { type: "iframe", embedUrl: trimmed };
+}
+
+function PhotoGalleryBlock({ block }: { block: any }) {
+  const images: Array<{ url: string; alt?: string; caption?: string }> = Array.isArray(
+    block.images,
+  )
+    ? block.images
+    : Array.isArray(block.items)
+      ? block.items
+      : [];
+  const [selectedImage, setSelectedImage] = useState<{
+    url: string;
+    alt?: string;
+    caption?: string;
+  } | null>(null);
+
+  if (images.length === 0) return null;
+
+  return (
+    <div className="clear-both my-6 space-y-3">
+      {block.title && (
+        <h3 className="text-xl font-bold tracking-tight text-foreground">{block.title}</h3>
+      )}
+      <div
+        className={`grid gap-3 ${
+          images.length === 1
+            ? "grid-cols-1"
+            : images.length === 2
+              ? "grid-cols-1 sm:grid-cols-2"
+              : "grid-cols-2 sm:grid-cols-3"
+        }`}
+      >
+        {images.map((img, i) => (
+          <figure
+            key={i}
+            onClick={() => setSelectedImage(img)}
+            className="group relative cursor-pointer overflow-hidden rounded-2xl border border-border/80 bg-muted/20 shadow-xs transition-all duration-300 hover:shadow-md hover:border-primary/50"
+          >
+            <div className="aspect-4/3 w-full overflow-hidden">
+              <img
+                src={img.url}
+                alt={img.alt || `Foto ${i + 1}`}
+                loading="lazy"
+                className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+              />
+            </div>
+            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/25 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+              <span className="rounded-full bg-black/60 p-2 text-white shadow-sm">
+                <ZoomIn className="size-4" />
+              </span>
+            </div>
+            {img.caption && (
+              <figcaption className="p-2.5 text-xs font-medium text-muted-foreground truncate">
+                {img.caption}
+              </figcaption>
+            )}
+          </figure>
+        ))}
+      </div>
+
+      {selectedImage && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setSelectedImage(null)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-xs p-4"
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative max-h-[90vh] max-w-4xl overflow-hidden rounded-2xl bg-card border border-border shadow-2xl"
+          >
+            <button
+              type="button"
+              onClick={() => setSelectedImage(null)}
+              className="absolute top-3 right-3 z-10 rounded-full bg-black/60 p-2 text-white hover:bg-black/80 transition-colors cursor-pointer"
+            >
+              <X className="size-4" />
+            </button>
+            <img
+              src={selectedImage.url}
+              alt={selectedImage.alt || ""}
+              className="max-h-[75vh] w-auto object-contain mx-auto"
+            />
+            {selectedImage.caption && (
+              <div className="p-4 text-center text-sm font-semibold text-foreground bg-card border-t border-border">
+                {selectedImage.caption}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function KeyDatesBlock({ block }: { block: any }) {
+  const events: Array<{
+    date: string;
+    title: string;
+    time?: string;
+    location?: string;
+    description?: string;
+  }> = Array.isArray(block.events)
+    ? block.events
+    : Array.isArray(block.dates)
+      ? block.dates
+      : [];
+
+  if (events.length === 0) return null;
+
+  return (
+    <div className="clear-both my-6 space-y-3 rounded-2xl border border-primary/20 bg-primary/5 p-5 sm:p-6">
+      <div className="flex items-center gap-2 text-primary font-bold text-base sm:text-lg">
+        <Calendar className="size-5 shrink-0" />
+        <h3>{block.title || "Fechas Clave y Próximos Eventos"}</h3>
+      </div>
+      <div className="divide-y divide-border/60">
+        {events.map((ev, i) => (
+          <div
+            key={i}
+            className="py-3.5 first:pt-2 last:pb-1 flex flex-col sm:flex-row sm:items-start gap-3 sm:gap-4"
+          >
+            <div className="shrink-0 flex items-center gap-2 sm:flex-col sm:items-center sm:justify-center rounded-xl bg-card px-3.5 py-1.5 sm:size-16 sm:p-0 border border-border shadow-2xs">
+              <span className="text-xs font-bold uppercase text-primary tracking-wider">
+                {ev.date.split(" ")[0] || "Fecha"}
+              </span>
+              <span className="text-sm sm:text-base font-extrabold text-foreground">
+                {ev.date.split(" ").slice(1).join(" ") || ev.date}
+              </span>
+            </div>
+            <div className="flex-1 space-y-1">
+              <h4 className="font-bold text-base text-foreground">{ev.title}</h4>
+              {(ev.time || ev.location) && (
+                <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground font-medium">
+                  {ev.time && (
+                    <span className="inline-flex items-center gap-1">
+                      <Clock className="size-3.5 text-primary" />
+                      {ev.time}
+                    </span>
+                  )}
+                  {ev.location && (
+                    <span className="inline-flex items-center gap-1">
+                      <MapPin className="size-3.5 text-primary" />
+                      {ev.location}
+                    </span>
+                  )}
+                </div>
+              )}
+              {ev.description && (
+                <p className="text-sm text-foreground/85 leading-relaxed pt-0.5">
+                  {ev.description}
+                </p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 const CALLOUT = {
   info: {
@@ -351,17 +555,28 @@ export function ArticleBlocks({ blocks }: { blocks: Block[] }) {
                 </ul>
               );
 
-            case "video":
+            case "video": {
+              const { type: videoType, embedUrl } = normalizeVideoEmbed(block.url);
               return (
                 <figure key={key} className="clear-both space-y-2">
-                  <div className="aspect-video overflow-hidden rounded-2xl border border-border shadow-soft">
-                    <iframe
-                      src={block.url}
-                      title={block.title || block.caption || "Video"}
-                      loading="lazy"
-                      allowFullScreen
-                      className="size-full"
-                    />
+                  <div className="aspect-video overflow-hidden rounded-2xl border border-border shadow-soft bg-black/90">
+                    {videoType === "video" ? (
+                      <video
+                        src={embedUrl}
+                        controls
+                        playsInline
+                        className="size-full object-contain"
+                      />
+                    ) : (
+                      <iframe
+                        src={embedUrl}
+                        title={block.title || block.caption || "Video"}
+                        loading="lazy"
+                        allowFullScreen
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        className="size-full"
+                      />
+                    )}
                   </div>
                   {block.title || block.caption ? (
                     <figcaption className="text-center text-sm font-medium text-muted-foreground">
@@ -370,6 +585,16 @@ export function ArticleBlocks({ blocks }: { blocks: Block[] }) {
                   ) : null}
                 </figure>
               );
+            }
+
+            case "gallery":
+            case "photos":
+              return <PhotoGalleryBlock key={key} block={block} />;
+
+            case "key_dates":
+            case "dates":
+            case "timeline":
+              return <KeyDatesBlock key={key} block={block} />;
 
             case "divider":
               return <hr key={key} className="my-6 border-t-2 border-dashed border-border/80" />;

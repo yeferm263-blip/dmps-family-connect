@@ -1221,6 +1221,19 @@ export function useAdminSession(): AdminSession {
     let active = true;
 
     async function load() {
+      if (!isSupabaseConfigured()) {
+        if (active) {
+          setState({
+            loading: false,
+            userId: null,
+            email: null,
+            role: null,
+            session: null,
+          });
+        }
+        return;
+      }
+
       try {
         const { data } = await supabase.auth.getUser();
         const user = data?.user;
@@ -1285,6 +1298,13 @@ export function useAdminSession(): AdminSession {
 
     window.addEventListener("dmps_auth_change", handleAuthChange);
 
+    if (!isSupabaseConfigured()) {
+      return () => {
+        active = false;
+        window.removeEventListener("dmps_auth_change", handleAuthChange);
+      };
+    }
+
     const { data: sub } = supabase.auth.onAuthStateChange(() => {
       void load();
     });
@@ -1292,7 +1312,7 @@ export function useAdminSession(): AdminSession {
     return () => {
       active = false;
       window.removeEventListener("dmps_auth_change", handleAuthChange);
-      sub.subscription.unsubscribe();
+      sub?.subscription?.unsubscribe();
     };
   }, []);
 

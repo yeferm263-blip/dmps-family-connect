@@ -149,7 +149,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/admin/traducciones", label: "Traducciones (ES, EN, KSW)", icon: FileCheck2 },
       { to: "/admin/vigencia", label: "Fechas y Vigencia", icon: CalendarClock },
       { to: "/admin/calidad", label: "Bandeja de Calidad", icon: FileCheck2 },
-      { to: "/admin/solicitudes", label: "Solicitudes de Familias", icon: Inbox },
+      { to: "/admin/solicitudes", label: "Solicitudes y Clubs", icon: Inbox, badge: "Plazas" },
       { to: "/admin/ayuda-familias", label: "Ayuda para Familias", icon: MessageCircleQuestion },
     ],
   },

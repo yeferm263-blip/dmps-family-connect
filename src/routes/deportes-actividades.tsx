@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import {
   Calendar,
   CheckCircle2,
@@ -619,6 +619,15 @@ function DeportesActividadesPage() {
                 <HelpCircle className="size-4 mr-1.5 text-primary" />
                 {regSettings.secondary_button_label}
               </Button>
+              <Link to="/clubs">
+                <Button
+                  variant="outline"
+                  className="min-h-11 px-4 rounded-xl font-bold border-primary/30 text-primary bg-primary/5 hover:bg-primary/10 gap-2"
+                >
+                  <Sparkles className="size-4" />
+                  <span>Ver Clubs Escolares</span>
+                </Button>
+              </Link>
             </div>
           </div>
         </div>

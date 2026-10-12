@@ -93,11 +93,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "DMPS Family Info" },
+      { title: "DMPS Family Connect" },
       {
         name: "description",
         content:
-          "Automated and verified official information portal for Des Moines Public Schools families",
+          "Biblioteca pública de información y recursos oficiales para las familias de Des Moines Public Schools (DMPS).",
       },
       { name: "author", content: "Des Moines Public Schools" },
       {
@@ -115,11 +115,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-status-bar-style", content: "default" },
       { name: "theme-color", content: "#06234B" },
 
-      { property: "og:title", content: "DMPS Family Info" },
+      { property: "og:title", content: "DMPS Family Connect" },
       {
         property: "og:description",
         content:
-          "Automated and verified official information portal for Des Moines Public Schools families",
+          "Biblioteca pública de información y recursos oficiales para las familias de Des Moines Public Schools (DMPS).",
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },

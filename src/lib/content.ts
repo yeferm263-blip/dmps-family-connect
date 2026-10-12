@@ -125,6 +125,25 @@ function enrichCategoryRow(raw: Record<string, any>): CategoryRow {
   };
 }
 
+const fallbackCache = new Map<string, any[]>();
+export async function fetchFallbackTable<T = any>(tableName: string): Promise<T[]> {
+  if (typeof window === "undefined") return [];
+  if (fallbackCache.has(tableName)) return (fallbackCache.get(tableName) || []) as T[];
+  try {
+    const res = await fetch(`/api/storage/${tableName}`);
+    if (res.ok) {
+      const json = await res.json();
+      if (Array.isArray(json?.data)) {
+        fallbackCache.set(tableName, json.data);
+        return json.data as T[];
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return [];
+}
+
 export async function fetchCategories(schoolId?: string): Promise<CategoryRow[]> {
   if (isSupabaseConfigured()) {
     try {
@@ -135,7 +154,7 @@ export async function fetchCategories(schoolId?: string): Promise<CategoryRow[]>
           .select("id, category_id, language_code, name, description, updated_at"),
       ]);
 
-      if (!catRes.error && catRes.data) {
+      if (!catRes.error && catRes.data && catRes.data.length > 0) {
         const allTrs = Array.isArray(trRes.data) ? (trRes.data as Record<string, any>[]) : [];
         const enriched = (catRes.data as unknown as Record<string, any>[])
           .map((c) => ({
@@ -149,6 +168,25 @@ export async function fetchCategories(schoolId?: string): Promise<CategoryRow[]>
     } catch (err) {
       console.warn("[Content] Supabase fetchCategories notice:", err);
     }
+  }
+
+  try {
+    const [cats, trs] = await Promise.all([
+      fetchFallbackTable<Record<string, any>>("categories"),
+      fetchFallbackTable<Record<string, any>>("category_translations"),
+    ]);
+    if (cats.length > 0) {
+      const enriched = cats
+        .map((c) => ({
+          ...c,
+          category_translations: trs.filter((t) => String(t.category_id) === String(c.id)),
+        }))
+        .map(enrichCategoryRow)
+        .filter((c) => c.is_visible !== false);
+      return filterBySchool(enriched, schoolId);
+    }
+  } catch {
+    // ignore
   }
 
   return [];
@@ -441,51 +479,89 @@ export async function fetchPublishedArticles(
   schoolId?: string,
   options?: { light?: boolean },
 ): Promise<ArticleRow[]> {
-  if (!isSupabaseConfigured()) return [];
   const light = options?.light === true;
 
-  // Retry a few times and throw on final failure so the page retries instead of
-  // caching an empty list. Public lists use light mode (no full article bodies).
-  let lastError: unknown = null;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      let query = supabase
-        .from("articles")
-        .select(light ? LIGHT_ARTICLE_COLUMNS : "*")
-        .eq("status", "published")
-        .order("published_at", { ascending: false });
-      if (categoryId) query = query.or(`category_id.eq.${categoryId},category_ids.cs.{${categoryId}}`);
+  if (isSupabaseConfigured()) {
+    let lastError: unknown = null;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        let query = supabase
+          .from("articles")
+          .select(light ? LIGHT_ARTICLE_COLUMNS : "*")
+          .eq("status", "published")
+          .order("published_at", { ascending: false });
+        if (categoryId) query = query.or(`category_id.eq.${categoryId},category_ids.cs.{${categoryId}}`);
 
-      const [artRes, trRes, catRes] = await Promise.all([
-        query,
-        light
-          ? supabase
-              .from("article_translations")
-              .select("id, article_id, language_code, title, summary, updated_at")
-          : supabase
-          .from("article_translations")
-          .select(
-            light
-              ? "id, article_id, language_code, title, summary, updated_at"
-              : "id, article_id, language_code, title, summary, content_blocks, updated_at",
-          ),
-        supabase.from("categories").select("id, slug, name"),
-      ]);
+        const [artRes, trRes, catRes] = await Promise.all([
+          query,
+          light
+            ? supabase
+                .from("article_translations")
+                .select("id, article_id, language_code, title, summary, updated_at")
+            : supabase
+            .from("article_translations")
+            .select(
+              light
+                ? "id, article_id, language_code, title, summary, updated_at"
+                : "id, article_id, language_code, title, summary, content_blocks, updated_at",
+            ),
+          supabase.from("categories").select("id, slug, name"),
+        ]);
 
-      if (artRes.error || !artRes.data) throw artRes.error ?? new Error("No article data");
-      if (trRes.error) throw trRes.error;
+        if (artRes.error || !artRes.data) throw artRes.error ?? new Error("No article data");
+        if (trRes.error) throw trRes.error;
 
-      const allTrs = Array.isArray(trRes.data) ? (trRes.data as Record<string, any>[]) : [];
-      const allCats = Array.isArray(catRes.data) ? (catRes.data as Record<string, any>[]) : [];
-      const enriched = (artRes.data as unknown as Record<string, any>[])
+        const allTrs = Array.isArray(trRes.data) ? (trRes.data as Record<string, any>[]) : [];
+        const allCats = Array.isArray(catRes.data) ? (catRes.data as Record<string, any>[]) : [];
+        const enriched = (artRes.data as unknown as Record<string, any>[])
+          .map((r) => {
+            const matchedCat = allCats.find(
+              (c) =>
+                String(c.id) === String(r.category_id) || String(c.slug) === String(r.category_id),
+            );
+            return {
+              ...r,
+              article_translations: allTrs.filter((t) => String(t.article_id) === String(r.id)),
+              categories: matchedCat
+                ? { slug: String(matchedCat.slug), name: String(matchedCat.name) }
+                : null,
+            };
+          })
+          .map(enrichArticleRow);
+        return filterBySchool(enriched, schoolId);
+      } catch (err) {
+        lastError = err;
+        await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
+      }
+    }
+  }
+
+  // Fallback data when Supabase is not configured
+  try {
+    const [rawArticles, trs, cats] = await Promise.all([
+      fetchFallbackTable<Record<string, any>>("articles"),
+      fetchFallbackTable<Record<string, any>>("article_translations"),
+      fetchFallbackTable<Record<string, any>>("categories"),
+    ]);
+
+    if (rawArticles.length > 0) {
+      let filtered = rawArticles.filter((r) => r.status === "published" || !r.status);
+      if (categoryId) {
+        filtered = filtered.filter(
+          (r) =>
+            String(r.category_id) === String(categoryId) ||
+            (Array.isArray(r.category_ids) && r.category_ids.includes(categoryId)),
+        );
+      }
+      const enriched = filtered
         .map((r) => {
-          const matchedCat = allCats.find(
+          const matchedCat = cats.find(
             (c) =>
               String(c.id) === String(r.category_id) || String(c.slug) === String(r.category_id),
           );
           return {
             ...r,
-            article_translations: allTrs.filter((t) => String(t.article_id) === String(r.id)),
+            article_translations: trs.filter((t) => String(t.article_id) === String(r.id)),
             categories: matchedCat
               ? { slug: String(matchedCat.slug), name: String(matchedCat.name) }
               : null,
@@ -493,13 +569,12 @@ export async function fetchPublishedArticles(
         })
         .map(enrichArticleRow);
       return filterBySchool(enriched, schoolId);
-    } catch (err) {
-      lastError = err;
-      await new Promise((r) => setTimeout(r, 600 * (attempt + 1)));
     }
+  } catch {
+    // ignore
   }
-  console.warn("[Content] fetchPublishedArticles failed after retries:", lastError);
-  throw lastError instanceof Error ? lastError : new Error("Could not load articles");
+
+  return [];
 }
 
 export async function fetchArticleBySlug(slug: string): Promise<ArticleRow | null> {
@@ -537,6 +612,32 @@ export async function fetchArticleBySlug(slug: string): Promise<ArticleRow | nul
     } catch (err) {
       console.warn("[Content] Supabase fetchArticleBySlug notice:", err);
     }
+  }
+
+  // Fallback data when Supabase is not configured
+  try {
+    const [rawArticles, trs, cats] = await Promise.all([
+      fetchFallbackTable<Record<string, any>>("articles"),
+      fetchFallbackTable<Record<string, any>>("article_translations"),
+      fetchFallbackTable<Record<string, any>>("categories"),
+    ]);
+
+    const found = rawArticles.find((r) => r.slug === slug || r.id === slug);
+    if (found) {
+      const matchedCat = cats.find(
+        (c) =>
+          String(c.id) === String(found.category_id) || String(c.slug) === String(found.category_id),
+      );
+      return enrichArticleRow({
+        ...found,
+        article_translations: trs.filter((t) => String(t.article_id) === String(found.id)),
+        categories: matchedCat
+          ? { slug: String(matchedCat.slug), name: String(matchedCat.name) }
+          : null,
+      });
+    }
+  } catch {
+    // ignore
   }
 
   return null;
@@ -879,6 +980,38 @@ export async function fetchEvents(schoolId?: string): Promise<EventRow[]> {
     }
   }
 
+  // Fallback data when Supabase is not configured
+  try {
+    const [events, trs] = await Promise.all([
+      fetchFallbackTable<Record<string, any>>("events"),
+      fetchFallbackTable<Record<string, any>>("event_translations"),
+    ]);
+    if (events.length > 0) {
+      const mapped = events.map((r) => {
+        const rawTrs = trs.filter((t) => String(t.event_id) === String(r.id));
+        const deDuped = dedupeTranslations(rawTrs as any[]);
+        const esTr = deDuped.find((t) => t.language_code === "es");
+        return {
+          ...r,
+          title: esTr?.title || r.title || "",
+          description: esTr?.description ?? r.description ?? null,
+          start_date: r.start_date || (r.starts_at ? String(r.starts_at).slice(0, 10) : ""),
+          end_date:
+            r.end_date !== undefined
+              ? r.end_date
+              : r.ends_at
+                ? String(r.ends_at).slice(0, 10)
+                : null,
+          official_url: r.official_url ?? r.source_url ?? null,
+          event_translations: deDuped,
+        };
+      });
+      return filterBySchool(mapped as unknown as EventRow[], schoolId);
+    }
+  } catch {
+    // ignore
+  }
+
   return [];
 }
 
@@ -962,6 +1095,28 @@ export async function fetchActiveAnnouncements(schoolId?: string): Promise<Annou
     }
   }
 
+  // Fallback data when Supabase is not configured
+  try {
+    const [announcements, trs] = await Promise.all([
+      fetchFallbackTable<Record<string, any>>("announcements"),
+      fetchFallbackTable<Record<string, any>>("announcement_translations"),
+    ]);
+    if (announcements.length > 0) {
+      return scoped(
+        announcements
+          .map((r) => ({
+            ...r,
+            announcement_translations: trs.filter(
+              (t) => String(t.announcement_id) === String(r.id),
+            ),
+          }))
+          .map(enrichAnnouncementRow),
+      );
+    }
+  } catch {
+    // ignore
+  }
+
   return [];
 }
 
@@ -995,6 +1150,29 @@ export async function fetchAllAnnouncements(schoolId?: string): Promise<Announce
     } catch (err) {
       console.warn("[Content] Supabase fetchAllAnnouncements notice:", err);
     }
+  }
+
+  // Fallback data when Supabase is not configured
+  try {
+    const [announcements, trs] = await Promise.all([
+      fetchFallbackTable<Record<string, any>>("announcements"),
+      fetchFallbackTable<Record<string, any>>("announcement_translations"),
+    ]);
+    if (announcements.length > 0) {
+      return filterBySchool(
+        announcements
+          .map((r) => ({
+            ...r,
+            announcement_translations: trs.filter(
+              (t) => String(t.announcement_id) === String(r.id),
+            ),
+          }))
+          .map(enrichAnnouncementRow),
+        schoolId,
+      );
+    }
+  } catch {
+    // ignore
   }
 
   return [];

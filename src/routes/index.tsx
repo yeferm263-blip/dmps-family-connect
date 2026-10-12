@@ -396,6 +396,33 @@ function Index() {
         </ul>
       </section>
 
+      {/* Clubs y Actividades Estudiantiles Highlight */}
+      <section className="mx-auto max-w-6xl px-4 pb-8 sm:px-6">
+        <div className="rounded-3xl border border-primary/20 bg-linear-to-r from-primary/10 via-primary/5 to-transparent p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-6 shadow-2xs">
+          <div className="space-y-1.5 max-w-2xl">
+            <div className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 px-3 py-1 text-xs font-bold text-primary">
+              <Sparkles className="size-3.5" />
+              <span>Vida Estudiantil y Liderazgo</span>
+            </div>
+            <h2 className="text-2xl font-bold sm:text-3xl text-foreground">
+              {lang === "es" ? "Espacio de Clubs Escolares" : "School Clubs & Student Activities"}
+            </h2>
+            <p className="text-sm text-muted-foreground leading-relaxed">
+              {lang === "es"
+                ? `Explora los clubs de robótica, colectivos culturales, grupos de teatro y liderazgo en ${selectedSchool.name} y en todo el distrito.`
+                : `Discover robotics clubs, cultural groups, theater troupes, and student leadership at ${selectedSchool.name} and across the district.`}
+            </p>
+          </div>
+          <Link
+            to="/clubs"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-primary px-5 py-2.5 text-sm font-bold text-primary-foreground hover:bg-primary/90 shrink-0 shadow-xs"
+          >
+            <span>{lang === "es" ? "Explorar Clubs" : "Explore Clubs"}</span>
+            <ArrowRight className="size-4" />
+          </Link>
+        </div>
+      </section>
+
       {/* Banner de Ayuda y Contacto */}
       <section className="mx-auto max-w-6xl px-4 pb-16 sm:px-6">
         <div className="surface-card grid items-center gap-6 overflow-hidden bg-primary-soft p-6 sm:p-10 md:grid-cols-[auto_minmax(0,1fr)]">
