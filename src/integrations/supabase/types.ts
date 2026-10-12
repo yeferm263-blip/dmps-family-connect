@@ -437,6 +437,7 @@ export type Database = {
           card_banners: Json | null
           card_bg: string | null
           category_id: string | null
+          category_ids: string[]
           contact_id: string | null
           content: string | null
           created_at: string | null
@@ -479,6 +480,7 @@ export type Database = {
           card_banners?: Json | null
           card_bg?: string | null
           category_id?: string | null
+          category_ids?: string[]
           contact_id?: string | null
           content?: string | null
           created_at?: string | null
@@ -521,6 +523,7 @@ export type Database = {
           card_banners?: Json | null
           card_bg?: string | null
           category_id?: string | null
+          category_ids?: string[]
           contact_id?: string | null
           content?: string | null
           created_at?: string | null
