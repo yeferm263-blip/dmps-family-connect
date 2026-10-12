@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node -e 'import(\"node:fs\").then(fs => { if (!fs.existsSync(\"dist\")) fs.cpSync(\".output/public\", \"dist\", { recursive: true }); if (!fs.existsSync(\"dist/index.html\")) fs.copyFileSync(\"index.html\", \"dist/index.html\"); })'",
+    "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
-    "start": "node server.ts",
+    
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
