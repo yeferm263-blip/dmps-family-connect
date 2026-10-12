@@ -12,6 +12,7 @@
 <!-- LOVABLE:END -->
 
 ## Project rules
+- Inline image background removal uses a shared DOM update helper and the existing remove.bg hook; capture the target before awaiting so changing selection cannot modify another image.
 - Database schema lives in Lovable Cloud and changes only through migration files in drizzle/migrations; old Supabase migration history from the imported app was consolidated, so don't restore it.
 - Admin access is granted by rows in public.user_roles (role helpers like is_admin()/can_manage_content()); never store roles elsewhere.
 - Page-level visual assets are stored in the appearance_settings settings JSON so branding remains centrally managed without extra schema columns.
