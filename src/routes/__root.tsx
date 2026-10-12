@@ -243,7 +243,6 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>
         <I18nProvider>
-          <UniversalPageTranslator />
           <SchoolProvider>
               <PodcastPlayerProvider>
                 <DeferredBackground />
@@ -286,6 +285,7 @@ function DeferredBackground() {
   if (!ready) return null;
   return (
     <>
+      <UniversalPageTranslator />
       <DmpsAnalyticsObserver />
       <RealtimeSync />
     </>
