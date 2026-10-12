@@ -1,5 +1,4 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { articleInCategory } from "@/lib/content";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
@@ -10,7 +9,7 @@ import { CategoryIcon } from "@/components/category-icon";
 import { PublicShell } from "@/components/public-shell";
 import { ResourcesOverview } from "@/components/resources-overview";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchCategories, fetchPublishedArticles, localizedCategory } from "@/lib/content";
+import { articleInCategory, fetchCategories, fetchPublishedArticles, localizedCategory } from "@/lib/content";
 import { useI18n } from "@/lib/i18n";
 import { useSchool } from "@/lib/school";
 import { trackCategoryClick } from "@/analytics";
