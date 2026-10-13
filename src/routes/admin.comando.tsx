@@ -5,35 +5,32 @@ import { useServerFn } from "@tanstack/react-start";
 import { useState, useRef, useEffect } from "react";
 import { toast } from "sonner";
 import {
-  Activity,
   AlertTriangle,
   ArrowRight,
   BookOpen,
   Calendar,
   Check,
   CheckCircle2,
-  ChevronRight,
   Clock,
   Compass,
   CornerDownLeft,
   ExternalLink,
+  Eye,
+  FileEdit,
   FileText,
-  Flame,
-  HelpCircle,
   History,
-  Layers,
   Loader2,
+  Mail,
   MapPin,
   Megaphone,
   Mic,
   MicOff,
+  Phone,
   Radio,
   RefreshCw,
   Send,
-  ShieldAlert,
   ShieldCheck,
   Sparkles,
-  Tag,
   Terminal,
   Trash2,
   Trophy,
@@ -62,7 +59,7 @@ export const Route = createFileRoute("/admin/comando")({
       { title: "Centro Inteligente de Mando con Voz — DMPS Admin" },
       {
         name: "description",
-        content: "Consola de control y comando por voz para DMPS Family Connect.",
+        content: "Consola de control, búsqueda y comando por voz para DMPS Family Connect.",
       },
     ],
   }),
@@ -100,6 +97,9 @@ export function CommandCenterPage() {
     }>
   >([]);
 
+  // Local card edit states for human-in-the-loop preview editing
+  const [editingCardPayloads, setEditingCardPayloads] = useState<Record<string, any>>({});
+
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -113,7 +113,7 @@ export function CommandCenterPage() {
     queryFn: async () => {
       return await overviewFn();
     },
-    staleTime: 1000 * 30,
+    staleTime: 1000 * 15,
   });
 
   // Voice Assistant Hook
@@ -123,7 +123,7 @@ export function CommandCenterPage() {
     onTranscript: (text, isFinal) => {
       setInputQuery(text);
       if (isFinal && text.trim().length > 3) {
-        handleSendCommand(text);
+        handleSendCommand(text, true);
       }
     },
     onError: (err) => {
@@ -137,7 +137,7 @@ export function CommandCenterPage() {
       id: "msg-welcome",
       sender: "assistant",
       timestamp: "En vivo",
-      text: "¡Hola! Bienvenido al Centro Inteligente de Mando con Voz de DMPS Family Connect. Puedes hablar o escribir en lenguaje natural para crear artículos, programar eventos deportivos, emitir alertas o auditar el portal.",
+      text: '¡Hola! Bienvenido al Centro Inteligente de Mando con Voz de DMPS Family Connect.\n\nPuedes hablar o escribir en lenguaje natural para:\n• Buscar información oficial en las 29 guías escolares (ej: "¿Cómo entro a Infinite Campus?")\n• Buscar partidos y deportes en Bound (ej: "Busca partidos de baloncesto de East High")\n• Crear artículos y eventos (ej: "Crea un artículo sobre los exámenes finales")\n• Hacer cambios reales (ej: "Cancela el partido de baloncesto del viernes por clima", "Publica el borrador")',
     },
   ]);
 
@@ -195,11 +195,12 @@ export function CommandCenterPage() {
             title: (result.payload as any).title,
             time: new Date().toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" }),
             intent: result.intent,
-            type: "Publicación inmediata",
+            type: "Ejecución inmediata",
           },
           ...prev,
         ]);
         void refetchOverview();
+        void qc.invalidateQueries();
       }
 
       // Voice read-out confirmation through speech synthesis
@@ -228,11 +229,15 @@ export function CommandCenterPage() {
     if (!result.payload || executingCardId) return;
     setExecutingCardId(msgId);
 
+    // Merge any edits made in the card
+    const payloadToExecute = editingCardPayloads[msgId] || result.payload;
+
     try {
       const res = await executeActionFn({
         data: {
-          intent: result.intent as "CREATE_ARTICLE" | "CREATE_EVENT" | "CREATE_ANNOUNCEMENT",
-          payload: result.payload,
+          intent: result.intent as
+            "CREATE_ARTICLE" | "CREATE_EVENT" | "CREATE_ANNOUNCEMENT" | "MODIFY_CONTENT",
+          payload: payloadToExecute,
         },
       });
 
@@ -265,18 +270,20 @@ export function CommandCenterPage() {
         }
 
         // Add to history
-        if ("title" in (result.payload as any)) {
-          setActionHistory((prev) => [
-            {
-              id: `act-${Date.now()}`,
-              title: (result.payload as any).title,
-              time: new Date().toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" }),
-              intent: result.intent,
-              type: "Confirmado manualmente",
-            },
-            ...prev,
-          ]);
-        }
+        const histTitle =
+          (payloadToExecute as any).title ||
+          (payloadToExecute as any).targetTitle ||
+          "Acción confirmada";
+        setActionHistory((prev) => [
+          {
+            id: `act-${Date.now()}`,
+            title: histTitle,
+            time: new Date().toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" }),
+            intent: result.intent,
+            type: "Confirmado manualmente",
+          },
+          ...prev,
+        ]);
 
         void refetchOverview();
         void qc.invalidateQueries();
@@ -326,7 +333,19 @@ export function CommandCenterPage() {
       query: "Publica una alerta distrital de retraso de 2 horas en el transporte por clima",
     },
     {
-      label: "🔍 Auditar eventos y contenido",
+      label: "🔍 ¿Cómo entrar a Infinite Campus?",
+      query: "Busca cómo entrar a Infinite Campus y ver calificaciones",
+    },
+    {
+      label: "🏀 Buscar partidos de baloncesto",
+      query: "Busca partidos de baloncesto de Lincoln y East High",
+    },
+    {
+      label: "❌ Cancelar partido por clima",
+      query: "Cancela el partido de baloncesto de este viernes por clima",
+    },
+    {
+      label: "📊 Auditar portal y eventos",
       query: "Audita la web y dime qué contenido falta o qué eventos ya vencieron",
     },
   ];
@@ -346,15 +365,15 @@ export function CommandCenterPage() {
               className="gap-1 border-primary/30 bg-primary/5 text-primary text-xs"
             >
               <Sparkles className="size-3" />
-              <span>TanStack Start v1</span>
+              <span>DMPS Voice Engine V2</span>
             </Badge>
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight text-foreground sm:text-3xl">
             Centro de Control y Mando con Voz
           </h1>
           <p className="text-sm text-muted-foreground">
-            Crea contenido, programa partidos, emite alertas de transporte y audita la web mediante
-            órdenes habladas en español.
+            Búsqueda de información en guías oficiales, calendario de partidos de Bound, creación de
+            artículos y cambios reales en la base de datos mediante órdenes en español.
           </p>
         </div>
 
@@ -392,7 +411,7 @@ export function CommandCenterPage() {
               onClick={() => setSchoolScope("all")}
               className={`rounded-lg px-2.5 py-1 transition-colors ${
                 schoolScope === "all"
-                  ? "bg-background text-foreground shadow-xs"
+                  ? "bg-background text-foreground shadow-xs font-bold"
                   : "text-muted-foreground hover:text-foreground"
               }`}
             >
@@ -449,14 +468,14 @@ export function CommandCenterPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-foreground">
-              {overview?.articles.total ?? 18}
+              {overview?.articles.total ?? 29}
             </div>
             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="font-semibold text-emerald-600 dark:text-emerald-400">
-                {overview?.articles.published ?? 15} publicados
+                {overview?.articles.published ?? 29} publicados
               </span>
               <span>•</span>
-              <span>{overview?.articles.drafts ?? 3} borradores</span>
+              <span>{overview?.articles.drafts ?? 0} borradores</span>
             </div>
           </CardContent>
         </Card>
@@ -472,16 +491,14 @@ export function CommandCenterPage() {
             </div>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-black text-foreground">
-              {overview?.events.upcoming ?? 9}
-            </div>
+            <div className="text-2xl font-black text-foreground">{overview?.events.total ?? 5}</div>
             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="font-semibold text-foreground">
-                {overview?.events.sports ?? 6} partidos
+                {overview?.events.upcoming ?? 5} próximos
               </span>
               <span>•</span>
-              <span className="truncate max-w-[140px]">
-                {overview?.events.nextEvents[0]?.school || "Lincoln vs East"}
+              <span className={overview?.events.cancelled ? "text-rose-600 font-bold" : ""}>
+                {overview?.events.cancelled ?? 0} cancelados
               </span>
             </div>
           </CardContent>
@@ -499,14 +516,14 @@ export function CommandCenterPage() {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-black text-foreground">
-              {overview?.announcements.active ?? 4}
+              {overview?.announcements.total ?? 1}
             </div>
             <div className="mt-1 flex items-center gap-2 text-xs text-muted-foreground">
               <span className="font-semibold text-rose-600 dark:text-rose-400">
-                {overview?.announcements.urgent ?? 1} alerta urgente
+                {overview?.announcements.urgent ?? 0} urgente
               </span>
               <span>•</span>
-              <span>{overview?.announcements.tickerCount ?? 3} en ticker</span>
+              <span>{overview?.announcements.tickerCount ?? 1} en marquesina</span>
             </div>
           </CardContent>
         </Card>
@@ -523,7 +540,7 @@ export function CommandCenterPage() {
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2 text-2xl font-black text-foreground">
-              <span>98.6%</span>
+              <span>99.2%</span>
               <Badge
                 variant="outline"
                 className="border-emerald-500/30 bg-emerald-500/10 text-emerald-600 text-[10px] font-bold"
@@ -532,7 +549,7 @@ export function CommandCenterPage() {
               </Badge>
             </div>
             <p className="mt-1 truncate text-xs text-muted-foreground">
-              Auditoría: {overview?.systemHealth.lastAuditAt || "Al día"}
+              Auditoría: {overview?.systemHealth.lastAuditAt || "En vivo"}
             </p>
           </CardContent>
         </Card>
@@ -542,24 +559,24 @@ export function CommandCenterPage() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
         {/* Left/Center: Conversation & Action Cards (8 or 12 cols) */}
         <div className={showHistoryPanel ? "lg:col-span-8" : "lg:col-span-12"}>
-          <div className="flex min-h-[560px] flex-col rounded-3xl border border-border bg-card shadow-soft">
+          <div className="flex min-h-[580px] flex-col rounded-3xl border border-border bg-card shadow-soft">
             {/* Terminal Header */}
             <div className="flex items-center justify-between border-b border-border bg-secondary/30 px-5 py-3">
               <div className="flex items-center gap-2">
                 <Terminal className="size-4 text-primary" />
                 <span className="text-xs font-mono font-bold uppercase tracking-wider text-foreground">
-                  DMPS Command Stream :: Console V1
+                  DMPS Command Stream :: Consola de Mando
                 </span>
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="hidden sm:inline">Idioma: Español (es-US)</span>
                 <span>•</span>
-                <span className="font-mono text-emerald-600 font-semibold">Ready</span>
+                <span className="font-mono text-emerald-600 font-semibold">Listo para órdenes</span>
               </div>
             </div>
 
             {/* Stream Messages Container */}
-            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6 max-h-[620px]">
+            <div className="flex-1 space-y-4 overflow-y-auto p-4 sm:p-6 max-h-[660px]">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -592,17 +609,419 @@ export function CommandCenterPage() {
                     {msg.text && <p className="whitespace-pre-line">{msg.text}</p>}
                   </div>
 
-                  {/* If the message generated a Human-In-The-Loop Action Card */}
+                  {/* ACTION CARDS BY INTENT */}
                   {msg.parsedResult && msg.parsedResult.payload && (
                     <div className="mt-3 w-full max-w-2xl animate-in fade-in slide-in-from-bottom-2 duration-300">
-                      {/* CARD: CREATE_ARTICLE */}
+                      {/* ============================================================== */}
+                      {/* CARD 1: SEARCH_INFO (Grounded Knowledge & Guides) */}
+                      {/* ============================================================== */}
+                      {msg.parsedResult.intent === "SEARCH_INFO" && (
+                        <Card className="overflow-hidden rounded-2xl border-2 border-blue-500/30 bg-background shadow-lift">
+                          <div className="flex items-center justify-between border-b border-border bg-blue-500/10 px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <Compass className="size-4 text-blue-600" />
+                              <span className="text-xs font-bold uppercase tracking-wider text-blue-700 dark:text-blue-400">
+                                Búsqueda Oficial de Información
+                              </span>
+                            </div>
+                            <Badge variant="outline" className="text-xs bg-background">
+                              {(msg.parsedResult.payload as any).articles?.length || 0} Guías
+                              Encontradas
+                            </Badge>
+                          </div>
+                          <CardContent className="space-y-4 p-5">
+                            {/* Synthesized Answer */}
+                            <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-3.5 text-xs text-foreground leading-relaxed">
+                              <div className="font-bold text-blue-700 dark:text-blue-300 mb-1 flex items-center gap-1.5">
+                                <Sparkles className="size-3.5" />
+                                <span>Respuesta Oficial Verificada:</span>
+                              </div>
+                              <p className="whitespace-pre-line">
+                                {(msg.parsedResult.payload as any).answer}
+                              </p>
+                            </div>
+
+                            {/* Articles Grid */}
+                            {(msg.parsedResult.payload as any).articles?.length > 0 && (
+                              <div className="space-y-2">
+                                <h4 className="text-xs font-bold uppercase text-muted-foreground">
+                                  Guías y Artículos Oficiales Relacionados:
+                                </h4>
+                                <div className="space-y-2">
+                                  {(msg.parsedResult.payload as any).articles.map(
+                                    (art: any, i: number) => (
+                                      <div
+                                        key={i}
+                                        className="rounded-xl border border-border bg-secondary/30 p-3 text-xs space-y-1.5 transition-colors hover:border-primary/40"
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="font-bold text-foreground">
+                                            {art.title}
+                                          </span>
+                                          <div className="flex gap-1 shrink-0">
+                                            {art.category_name && (
+                                              <Badge variant="secondary" className="text-[10px]">
+                                                {art.category_name}
+                                              </Badge>
+                                            )}
+                                            {art.school_id && (
+                                              <Badge
+                                                variant="outline"
+                                                className="text-[10px] uppercase"
+                                              >
+                                                {art.school_id}
+                                              </Badge>
+                                            )}
+                                          </div>
+                                        </div>
+                                        <p className="text-muted-foreground line-clamp-2">
+                                          {art.summary}
+                                        </p>
+                                        <div className="pt-1 flex items-center gap-2">
+                                          <Link
+                                            to="/guia/$slug"
+                                            params={{ slug: art.slug }}
+                                            className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
+                                          >
+                                            <span>Leer Guía Completa</span>
+                                            <ArrowRight className="size-3" />
+                                          </Link>
+                                        </div>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Contacts */}
+                            {(msg.parsedResult.payload as any).contacts?.length > 0 && (
+                              <div className="space-y-2">
+                                <h4 className="text-xs font-bold uppercase text-muted-foreground">
+                                  Contactos y Enlaces BFL de DMPS:
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {(msg.parsedResult.payload as any).contacts.map(
+                                    (c: any, i: number) => (
+                                      <div
+                                        key={i}
+                                        className="rounded-xl border border-border bg-secondary/30 p-2.5 text-xs space-y-1"
+                                      >
+                                        <div className="font-bold text-foreground">{c.name}</div>
+                                        <div className="text-muted-foreground text-[11px]">
+                                          {c.role}
+                                        </div>
+                                        <div className="flex items-center gap-3 pt-1 text-[11px]">
+                                          <a
+                                            href={`tel:${c.phone}`}
+                                            className="flex items-center gap-1 text-primary hover:underline font-semibold"
+                                          >
+                                            <Phone className="size-3" />
+                                            <span>{c.phone}</span>
+                                          </a>
+                                          {c.email && (
+                                            <a
+                                              href={`mailto:${c.email}`}
+                                              className="flex items-center gap-1 text-muted-foreground hover:underline"
+                                            >
+                                              <Mail className="size-3" />
+                                              <span>Correo</span>
+                                            </a>
+                                          )}
+                                        </div>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* ============================================================== */}
+                      {/* CARD 2: SEARCH_SPORTS_EVENTS (Bound & Calendar) */}
+                      {/* ============================================================== */}
+                      {msg.parsedResult.intent === "SEARCH_SPORTS_EVENTS" && (
+                        <Card className="overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-background shadow-lift">
+                          <div className="flex items-center justify-between border-b border-border bg-amber-500/10 px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <Trophy className="size-4 text-amber-600" />
+                              <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                                Calendario Deportivo & Bound
+                              </span>
+                            </div>
+                            <Badge className="bg-amber-600 text-white text-xs">
+                              {(msg.parsedResult.payload as any).events?.length || 0} Eventos
+                            </Badge>
+                          </div>
+                          <CardContent className="space-y-4 p-5">
+                            <p className="text-xs font-semibold text-foreground">
+                              {(msg.parsedResult.payload as any).summary}
+                            </p>
+
+                            {/* Events List */}
+                            {(msg.parsedResult.payload as any).events?.length > 0 && (
+                              <div className="space-y-2">
+                                <h4 className="text-xs font-bold uppercase text-muted-foreground">
+                                  Partidos y Encuentros en Calendario:
+                                </h4>
+                                <div className="space-y-2">
+                                  {(msg.parsedResult.payload as any).events.map(
+                                    (ev: any, i: number) => (
+                                      <div
+                                        key={i}
+                                        className={`rounded-xl border p-3 text-xs space-y-2 ${
+                                          ev.is_cancelled
+                                            ? "border-rose-500/30 bg-rose-500/5"
+                                            : "border-border bg-secondary/30"
+                                        }`}
+                                      >
+                                        <div className="flex items-center justify-between gap-2">
+                                          <span className="font-bold text-foreground">
+                                            {ev.title}
+                                          </span>
+                                          {ev.is_cancelled ? (
+                                            <Badge
+                                              variant="destructive"
+                                              className="text-[10px] font-bold"
+                                            >
+                                              CANCELADO
+                                            </Badge>
+                                          ) : (
+                                            <Badge
+                                              variant="outline"
+                                              className="border-emerald-500/40 text-emerald-600 text-[10px] font-bold bg-emerald-500/10"
+                                            >
+                                              PROGRAMADO
+                                            </Badge>
+                                          )}
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px] text-muted-foreground">
+                                          <div className="flex items-center gap-1">
+                                            <Calendar className="size-3 text-amber-600" />
+                                            <span>{ev.start_date}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1">
+                                            <Clock className="size-3 text-amber-600" />
+                                            <span>{ev.start_time || "18:00"}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1 truncate">
+                                            <MapPin className="size-3 text-amber-600" />
+                                            <span className="truncate">{ev.location}</span>
+                                          </div>
+                                        </div>
+
+                                        {/* Action buttons on event item */}
+                                        <div className="pt-1 flex items-center justify-between gap-2">
+                                          <Button
+                                            size="sm"
+                                            variant="ghost"
+                                            onClick={() =>
+                                              handleSendCommand(
+                                                ev.is_cancelled
+                                                  ? `Reactiva el partido ${ev.title}`
+                                                  : `Cancela el evento ${ev.title} por clima`,
+                                              )
+                                            }
+                                            className={`h-7 px-2.5 text-[11px] rounded-lg font-semibold ${
+                                              ev.is_cancelled
+                                                ? "text-emerald-600 hover:bg-emerald-500/10"
+                                                : "text-rose-600 hover:bg-rose-500/10"
+                                            }`}
+                                          >
+                                            {ev.is_cancelled ? (
+                                              <>
+                                                <RefreshCw className="size-3 mr-1" />
+                                                <span>Reactivar este partido</span>
+                                              </>
+                                            ) : (
+                                              <>
+                                                <Trash2 className="size-3 mr-1" />
+                                                <span>Cancelar por clima</span>
+                                              </>
+                                            )}
+                                          </Button>
+                                          <Link
+                                            to="/admin/eventos"
+                                            className="text-[11px] text-primary hover:underline font-semibold inline-flex items-center gap-1"
+                                          >
+                                            <span>Ver en Calendario</span>
+                                            <ExternalLink className="size-3" />
+                                          </Link>
+                                        </div>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Bound Activities */}
+                            {(msg.parsedResult.payload as any).activities?.length > 0 && (
+                              <div className="space-y-2">
+                                <h4 className="text-xs font-bold uppercase text-muted-foreground">
+                                  Programas Deportivos en Plataforma Bound:
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                  {(msg.parsedResult.payload as any).activities.map(
+                                    (act: any, i: number) => (
+                                      <div
+                                        key={i}
+                                        className="rounded-xl border border-border bg-secondary/20 p-2.5 text-xs space-y-1"
+                                      >
+                                        <div className="font-bold text-foreground">{act.name}</div>
+                                        <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                                          <span>Temporada: {act.season}</span>
+                                          <span className="uppercase font-semibold">
+                                            {act.school_id}
+                                          </span>
+                                        </div>
+                                        <div className="pt-1">
+                                          <a
+                                            href={act.official_url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-semibold"
+                                          >
+                                            <span>Registro en Bound</span>
+                                            <ExternalLink className="size-3" />
+                                          </a>
+                                        </div>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* ============================================================== */}
+                      {/* CARD 3: MODIFY_CONTENT (Real Database Changes) */}
+                      {/* ============================================================== */}
+                      {msg.parsedResult.intent === "MODIFY_CONTENT" && (
+                        <Card className="overflow-hidden rounded-2xl border-2 border-indigo-500/40 bg-background shadow-lift">
+                          <div className="flex items-center justify-between border-b border-border bg-indigo-500/10 px-4 py-2.5">
+                            <div className="flex items-center gap-2">
+                              <FileEdit className="size-4 text-indigo-600" />
+                              <span className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400">
+                                Cambio Real en Base de Datos
+                              </span>
+                            </div>
+                            <Badge className="bg-indigo-600 text-white text-xs uppercase font-bold">
+                              {(msg.parsedResult.payload as any).targetType}
+                            </Badge>
+                          </div>
+                          <CardContent className="space-y-4 p-5">
+                            <div>
+                              <h3 className="text-base font-bold text-foreground">
+                                {(msg.parsedResult.payload as any).targetTitle}
+                              </h3>
+                              <p className="mt-1 text-xs text-muted-foreground">
+                                {(msg.parsedResult.payload as any).changeDescription}
+                              </p>
+                            </div>
+
+                            {/* Diff Table */}
+                            {(msg.parsedResult.payload as any).diff && (
+                              <div className="rounded-xl border border-border bg-secondary/30 p-3 text-xs space-y-2">
+                                <div className="font-bold text-muted-foreground uppercase text-[10px]">
+                                  Modificaciones que se aplicarán al registro:
+                                </div>
+                                <div className="space-y-1.5 font-mono text-[11px]">
+                                  {(msg.parsedResult.payload as any).diff.map(
+                                    (d: any, idx: number) => (
+                                      <div
+                                        key={idx}
+                                        className="flex items-center justify-between rounded-lg bg-background p-2 border border-border/60"
+                                      >
+                                        <span className="font-bold text-foreground">
+                                          {d.label}:
+                                        </span>
+                                        <div className="flex items-center gap-2">
+                                          <span className="text-rose-500 line-through">
+                                            {String(d.from)}
+                                          </span>
+                                          <ArrowRight className="size-3 text-muted-foreground" />
+                                          <span className="text-emerald-600 font-bold">
+                                            {String(d.to)}
+                                          </span>
+                                        </div>
+                                      </div>
+                                    ),
+                                  )}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Human In The Loop Action Buttons */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                              {msg.parsedResult.executed ? (
+                                <div className="flex items-center gap-2 text-xs font-bold text-emerald-600">
+                                  <CheckCircle2 className="size-4" />
+                                  <span>Cambio persistido con éxito en la Base de Datos</span>
+                                  <Link
+                                    to={
+                                      (msg.parsedResult.payload as any).targetType === "event"
+                                        ? "/admin/eventos"
+                                        : (msg.parsedResult.payload as any).targetType === "article"
+                                          ? "/admin/articulos"
+                                          : "/admin/anuncios"
+                                    }
+                                    className="ml-2 inline-flex items-center gap-1 text-primary hover:underline"
+                                  >
+                                    <span>Ver registro</span>
+                                    <ExternalLink className="size-3" />
+                                  </Link>
+                                </div>
+                              ) : (
+                                <>
+                                  <div className="flex items-center gap-2">
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleConfirmAction(msg.id, msg.parsedResult!)}
+                                      disabled={executingCardId === msg.id}
+                                      className="gap-1.5 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 shadow-soft"
+                                    >
+                                      {executingCardId === msg.id ? (
+                                        <Loader2 className="size-3.5 animate-spin" />
+                                      ) : (
+                                        <Check className="size-3.5" />
+                                      )}
+                                      <span>Confirmar y Aplicar Cambio</span>
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => handleDiscardAction(msg.id)}
+                                      className="rounded-xl text-xs text-muted-foreground hover:text-destructive"
+                                    >
+                                      <Trash2 className="size-3.5 mr-1" />
+                                      <span>Descartar</span>
+                                    </Button>
+                                  </div>
+                                  <span className="text-[11px] text-muted-foreground italic">
+                                    Supervisión de cambio
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
+
+                      {/* ============================================================== */}
+                      {/* CARD 4: CREATE_ARTICLE */}
+                      {/* ============================================================== */}
                       {msg.parsedResult.intent === "CREATE_ARTICLE" && (
                         <Card className="overflow-hidden rounded-2xl border-2 border-primary/30 bg-background shadow-lift">
                           <div className="flex items-center justify-between border-b border-border bg-primary/10 px-4 py-2.5">
                             <div className="flex items-center gap-2">
                               <FileText className="size-4 text-primary" />
                               <span className="text-xs font-bold uppercase tracking-wider text-primary">
-                                Propuesta de Artículo
+                                Propuesta de Nuevo Artículo
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -684,14 +1103,16 @@ export function CommandCenterPage() {
                         </Card>
                       )}
 
-                      {/* CARD: CREATE_EVENT */}
+                      {/* ============================================================== */}
+                      {/* CARD 5: CREATE_EVENT */}
+                      {/* ============================================================== */}
                       {msg.parsedResult.intent === "CREATE_EVENT" && (
                         <Card className="overflow-hidden rounded-2xl border-2 border-amber-500/30 bg-background shadow-lift">
                           <div className="flex items-center justify-between border-b border-border bg-amber-500/10 px-4 py-2.5">
                             <div className="flex items-center gap-2">
                               <Trophy className="size-4 text-amber-600" />
                               <span className="text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
-                                Partido / Evento Deportivo
+                                Nuevo Partido / Evento
                               </span>
                             </div>
                             <Badge className="bg-amber-600 text-white text-xs uppercase font-bold">
@@ -781,7 +1202,9 @@ export function CommandCenterPage() {
                         </Card>
                       )}
 
-                      {/* CARD: CREATE_ANNOUNCEMENT */}
+                      {/* ============================================================== */}
+                      {/* CARD 6: CREATE_ANNOUNCEMENT */}
+                      {/* ============================================================== */}
                       {msg.parsedResult.intent === "CREATE_ANNOUNCEMENT" && (
                         <Card className="overflow-hidden rounded-2xl border-2 border-rose-500/40 bg-background shadow-lift">
                           <div className="flex items-center justify-between border-b border-border bg-rose-500/10 px-4 py-2.5">
@@ -866,7 +1289,9 @@ export function CommandCenterPage() {
                         </Card>
                       )}
 
-                      {/* CARD: AUDIT_SITE */}
+                      {/* ============================================================== */}
+                      {/* CARD 7: AUDIT_SITE */}
+                      {/* ============================================================== */}
                       {msg.parsedResult.intent === "AUDIT_SITE" && (
                         <Card className="overflow-hidden rounded-2xl border-2 border-emerald-500/30 bg-background shadow-lift">
                           <div className="flex items-center justify-between border-b border-border bg-emerald-500/10 px-4 py-2.5">
@@ -937,7 +1362,7 @@ export function CommandCenterPage() {
               {isProcessing && (
                 <div className="flex items-center gap-2 text-xs text-muted-foreground animate-pulse p-2">
                   <Loader2 className="size-4 animate-spin text-primary" />
-                  <span>Analizando orden y consultando base de datos...</span>
+                  <span>Analizando orden y consultando base de datos en tiempo real...</span>
                 </div>
               )}
 
@@ -1025,7 +1450,7 @@ export function CommandCenterPage() {
                     placeholder={
                       voice.isListening
                         ? "Habla ahora... o escribe tu comando..."
-                        : 'Escribe o presiona el micrófono (Ej: "Crea un artículo de exámenes finales...")'
+                        : 'Escribe o presiona el micrófono (Ej: "Busca cómo entrar a Infinite Campus" o "Cancela el partido...")'
                     }
                     className="h-12 rounded-2xl border-border bg-secondary/40 pr-12 text-sm focus-visible:ring-primary"
                     disabled={isProcessing}

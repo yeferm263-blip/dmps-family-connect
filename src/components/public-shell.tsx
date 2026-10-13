@@ -1,9 +1,27 @@
+/* eslint-disable @typescript-eslint/ban-ts-comment */
 // @ts-nocheck -- imported code with loose typing; checked at runtime
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { Link, useRouterState } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { BookOpen, ChevronDown, Menu, Phone, Users } from "lucide-react";
+import {
+  BookOpen,
+  Building2,
+  ChevronDown,
+  ExternalLink,
+  GraduationCap,
+  HeartHandshake,
+  Menu,
+  Phone,
+  Users,
+} from "lucide-react";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 
 import { AnnouncementTicker } from "@/components/announcement-ticker";
 import { CategoryIcon } from "@/components/category-icon";
@@ -168,6 +186,86 @@ export function PublicShell({ children }: { children: ReactNode }) {
       )
       .sort((a, b) => (a.display_order ?? 0) - (b.display_order ?? 0));
   }, [menuItems, selectedSchool.id]);
+
+  const categorizedFooterLinks = useMemo(() => {
+    const categories: {
+      key: "academic" | "services" | "community";
+      titleEs: string;
+      titleEn: string;
+      titleKar: string;
+      icon: typeof GraduationCap;
+      items: PublicMenuItem[];
+    }[] = [
+      {
+        key: "academic",
+        titleEs: "Académico y Calendario",
+        titleEn: "Academic & Calendar",
+        titleKar: "မုၢ်နံၤမုၢ်သီ ဒီးတၢ်မၤလိ",
+        icon: GraduationCap,
+        items: [],
+      },
+      {
+        key: "services",
+        titleEs: "Servicios y Apoyo Familiar",
+        titleEn: "Family Services & Support",
+        titleKar: "တၢ်မၤစၢၤဟံၣ်ဖိဃီဖိ",
+        icon: HeartHandshake,
+        items: [],
+      },
+      {
+        key: "community",
+        titleEs: "Comunidad y Contacto",
+        titleEn: "Community & Contact",
+        titleKar: "ကရူၢ် ဒီးတၢ်ဆဲးကျိး",
+        icon: Building2,
+        items: [],
+      },
+    ];
+
+    for (const item of footerLinks) {
+      const p = (item.path || "").toLowerCase();
+      const id = (item.id || "").toLowerCase();
+
+      if (
+        p.includes("calend") ||
+        p.includes("horario") ||
+        p.includes("bell") ||
+        p.includes("program") ||
+        p.includes("deport") ||
+        p.includes("sport") ||
+        p.includes("topic") ||
+        p.includes("articul") ||
+        id.includes("calendar") ||
+        id.includes("bell") ||
+        id.includes("sports") ||
+        id.includes("program") ||
+        id.includes("article")
+      ) {
+        categories[0]!.items.push(item);
+      } else if (
+        p.includes("dart") ||
+        p.includes("transport") ||
+        p.includes("app") ||
+        p.includes("bfl") ||
+        p.includes("volunt") ||
+        p.includes("faq") ||
+        p.includes("empleo") ||
+        p.includes("job") ||
+        id.includes("dart") ||
+        id.includes("app") ||
+        id.includes("bfl") ||
+        id.includes("volunt") ||
+        id.includes("faq") ||
+        id.includes("job")
+      ) {
+        categories[1]!.items.push(item);
+      } else {
+        categories[2]!.items.push(item);
+      }
+    }
+
+    return categories.filter((c) => c.items.length > 0);
+  }, [footerLinks]);
 
   const articleLinks = useMemo(() => {
     const items: { kind: "article" | "guide"; slug: string; title: string }[] = (
@@ -862,61 +960,119 @@ export function PublicShell({ children }: { children: ReactNode }) {
       </main>
 
       <footer className="mt-16 border-t border-border bg-secondary/50">
-        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-[1.4fr_1fr_1fr]">
+        <div className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-[1.2fr_1.8fr_1fr]">
           <div>
             <SiteLogo />
             <p className="mt-4 max-w-sm text-sm text-muted-foreground">{t("site.tagline")}</p>
             <p className="mt-4 text-sm font-medium text-primary">{notice}</p>
           </div>
-          <nav aria-label="Footer">
-            <h2 className="text-sm font-bold uppercase tracking-wide">{t("home.quickLinks")}</h2>
-            <ul className="mt-3 space-y-2 text-sm">
-              {footerLinks.map((item) => {
-                const loc = localizedMenuItem(item, lang);
-                const isTut = item.path === "#tutorial" || item.path.startsWith("#");
-                const isExt = Boolean(item.is_external) || item.path.startsWith("http");
+          <nav aria-label="Footer" className="min-w-0">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-bold uppercase tracking-wide text-foreground">
+                {t("home.quickLinks")}
+              </h2>
+              <span className="text-xs font-semibold text-muted-foreground">
+                {footerLinks.length} {lang === "en" ? "links" : "enlaces"}
+              </span>
+            </div>
 
-                if (isTut) {
-                  return (
-                    <li key={`ft-${item.id}`}>
-                      <button
-                        type="button"
-                        onClick={openAppTutorial}
-                        className="text-start hover:underline cursor-pointer text-foreground/80 hover:text-foreground"
-                      >
-                        {loc.label}
-                      </button>
-                    </li>
-                  );
-                }
-
-                if (isExt) {
-                  return (
-                    <li key={`ft-${item.id}`}>
-                      <a
-                        href={item.path}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="hover:underline text-foreground/80 hover:text-foreground"
-                      >
-                        {loc.label}
-                      </a>
-                    </li>
-                  );
-                }
+            <Accordion
+              type="multiple"
+              defaultValue={["academic", "services"]}
+              className="space-y-2 border-none"
+            >
+              {categorizedFooterLinks.map((cat) => {
+                const catTitle =
+                  lang === "en"
+                    ? cat.titleEn
+                    : lang === "kar" || lang === "ksw"
+                      ? cat.titleKar
+                      : cat.titleEs;
+                const Icon = cat.icon;
 
                 return (
-                  <li key={`ft-${item.id}`}>
-                    <Link
-                      to={item.path as any}
-                      className="hover:underline text-foreground/80 hover:text-foreground"
-                    >
-                      {loc.label}
-                    </Link>
-                  </li>
+                  <AccordionItem
+                    key={cat.key}
+                    value={cat.key}
+                    className="rounded-2xl border border-border/80 bg-background/80 shadow-2xs overflow-hidden"
+                  >
+                    <AccordionTrigger className="px-3.5 py-2.5 text-xs font-bold text-foreground hover:bg-secondary/60 hover:no-underline transition-colors">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <div className="grid size-6 place-items-center rounded-lg bg-primary/10 text-primary shrink-0">
+                          <Icon className="size-3.5" aria-hidden="true" />
+                        </div>
+                        <span className="truncate">{catTitle}</span>
+                        <span className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                          {cat.items.length}
+                        </span>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="px-3.5 pt-1 pb-3 text-xs">
+                      <ul className="space-y-2 pl-1">
+                        {cat.items.map((item) => {
+                          const loc = localizedMenuItem(item, lang);
+                          const isTut = item.path === "#tutorial" || item.path.startsWith("#");
+                          const isExt = Boolean(item.is_external) || item.path.startsWith("http");
+
+                          if (isTut) {
+                            return (
+                              <li key={`ft-${item.id}`}>
+                                <button
+                                  type="button"
+                                  onClick={openAppTutorial}
+                                  className="flex items-center gap-2 text-start text-foreground/80 hover:text-primary transition-colors cursor-pointer group"
+                                >
+                                  <NavigationIcon
+                                    name={item.icon || "Compass"}
+                                    className="size-3.5 text-muted-foreground group-hover:text-primary shrink-0 transition-colors"
+                                  />
+                                  <span className="group-hover:underline">{loc.label}</span>
+                                </button>
+                              </li>
+                            );
+                          }
+
+                          if (isExt) {
+                            return (
+                              <li key={`ft-${item.id}`}>
+                                <a
+                                  href={item.path}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-2 text-foreground/80 hover:text-primary transition-colors group"
+                                >
+                                  <NavigationIcon
+                                    name={item.icon || "Globe"}
+                                    className="size-3.5 text-muted-foreground group-hover:text-primary shrink-0 transition-colors"
+                                  />
+                                  <span className="group-hover:underline">{loc.label}</span>
+                                  <ExternalLink className="size-2.5 text-muted-foreground opacity-70" />
+                                </a>
+                              </li>
+                            );
+                          }
+
+                          return (
+                            <li key={`ft-${item.id}`}>
+                              <Link
+                                to={item.path as any}
+                                className="flex items-center gap-2 text-foreground/80 hover:text-primary transition-colors group"
+                              >
+                                <NavigationIcon
+                                  name={item.icon || "Link"}
+                                  className="size-3.5 text-muted-foreground group-hover:text-primary shrink-0 transition-colors"
+                                />
+                                <span className="group-hover:underline">{loc.label}</span>
+                              </Link>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </AccordionContent>
+                  </AccordionItem>
                 );
               })}
-            </ul>
+            </Accordion>
           </nav>
           <div>
             <div className="flex items-center justify-between">
