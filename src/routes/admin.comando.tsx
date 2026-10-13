@@ -679,7 +679,7 @@ export function CommandCenterPage() {
                                         </p>
                                         <div className="pt-1 flex items-center gap-2">
                                           <Link
-                                            to="/guia/$slug"
+                                            to="/guias/$slug"
                                             params={{ slug: art.slug }}
                                             className="inline-flex items-center gap-1 text-xs font-bold text-primary hover:underline"
                                           >
