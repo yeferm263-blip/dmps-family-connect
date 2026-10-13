@@ -16,6 +16,7 @@ import {
   LogOut,
   Megaphone,
   MessageCircleQuestion,
+  Mic,
   Phone,
   RefreshCw,
   School,
@@ -91,6 +92,12 @@ const NAV_GROUPS: NavGroup[] = [
     id: "ia_creator_group",
     title: "Inteligencia Artificial",
     items: [
+      {
+        to: "/admin/comando",
+        label: "Centro de Mando & Voz",
+        icon: Mic,
+        badge: "🎙️ En vivo",
+      },
       {
         to: "/admin/estudio-editorial",
         label: "AI Editorial Studio",
