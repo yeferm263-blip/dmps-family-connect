@@ -166,6 +166,7 @@ const NAV_GROUPS: NavGroup[] = [
       },
       { to: "/admin/apariencia", label: "Identidad de DMPS INFO", icon: ImageIcon },
       { to: "/admin/emergentes", label: "Anuncios Flotantes", icon: Bell },
+      { to: "/admin/publicidad", label: "Publicidad (AdSense)", icon: Bell },
       { to: "/admin/reinicio", label: "Reinicio de Contenido", icon: ShieldAlert },
     ],
   },

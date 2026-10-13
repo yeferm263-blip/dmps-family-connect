@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { ArticleBlocks } from "@/components/article-blocks";
 import { ArticleBottomNav } from "@/components/article-bottom-nav";
+import { AdSlot } from "@/components/ad-slot";
 import { PublicShell } from "@/components/public-shell";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -212,6 +213,8 @@ function ArticlePage() {
             <div className="mt-10">
               <ArticleBlocks blocks={loc.blocks} />
             </div>
+
+            <AdSlot placement="article" />
 
             {/* Navegación al pie del artículo: Botón Volver y Siguiente */}
             <ArticleBottomNav
