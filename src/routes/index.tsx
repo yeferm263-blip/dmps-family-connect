@@ -1,3 +1,4 @@
+import { AdSlot } from "@/components/ad-slot";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, CalendarDays, Clock, Languages, Sparkles } from "lucide-react";
@@ -368,6 +369,10 @@ function Index() {
           )}
         </div>
       </section>
+
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <AdSlot placement="home" />
+      </div>
 
       {/* Artículos Informativos y Políticas */}
       <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6" aria-labelledby="featured-heading">

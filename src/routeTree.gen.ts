@@ -65,6 +65,7 @@ import { Route as AdminMenuRouteImport } from './routes/admin.menu'
 import { Route as AdminPodcastsRouteImport } from './routes/admin.podcasts'
 import { Route as AdminProgramasRouteImport } from './routes/admin.programas'
 import { Route as AdminProgramasEstudiantesRouteImport } from './routes/admin.programas-estudiantes'
+import { Route as AdminPublicidadRouteImport } from './routes/admin.publicidad'
 import { Route as AdminRecursosRouteImport } from './routes/admin.recursos'
 import { Route as AdminRedesSocialesRouteImport } from './routes/admin.redes-sociales'
 import { Route as AdminReinicioRouteImport } from './routes/admin.reinicio'
@@ -384,6 +385,11 @@ const AdminProgramasEstudiantesRoute =
     path: '/programas-estudiantes',
     getParentRoute: () => AdminRoute,
   } as any)
+const AdminPublicidadRoute = AdminPublicidadRouteImport.update({
+  id: '/publicidad',
+  path: '/publicidad',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminRecursosRoute = AdminRecursosRouteImport.update({
   id: '/recursos',
   path: '/recursos',
@@ -613,6 +619,7 @@ export interface FileRoutesByFullPath {
   '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/programas': typeof AdminProgramasRoute
   '/admin/programas-estudiantes': typeof AdminProgramasEstudiantesRoute
+  '/admin/publicidad': typeof AdminPublicidadRoute
   '/admin/recursos': typeof AdminRecursosRoute
   '/admin/redes-sociales': typeof AdminRedesSocialesRoute
   '/admin/reinicio': typeof AdminReinicioRoute
@@ -703,6 +710,7 @@ export interface FileRoutesByTo {
   '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/programas': typeof AdminProgramasRoute
   '/admin/programas-estudiantes': typeof AdminProgramasEstudiantesRoute
+  '/admin/publicidad': typeof AdminPublicidadRoute
   '/admin/recursos': typeof AdminRecursosRoute
   '/admin/redes-sociales': typeof AdminRedesSocialesRoute
   '/admin/reinicio': typeof AdminReinicioRoute
@@ -796,6 +804,7 @@ export interface FileRoutesById {
   '/admin/podcasts': typeof AdminPodcastsRoute
   '/admin/programas': typeof AdminProgramasRoute
   '/admin/programas-estudiantes': typeof AdminProgramasEstudiantesRoute
+  '/admin/publicidad': typeof AdminPublicidadRoute
   '/admin/recursos': typeof AdminRecursosRoute
   '/admin/redes-sociales': typeof AdminRedesSocialesRoute
   '/admin/reinicio': typeof AdminReinicioRoute
@@ -890,6 +899,7 @@ export interface FileRouteTypes {
     | '/admin/podcasts'
     | '/admin/programas'
     | '/admin/programas-estudiantes'
+    | '/admin/publicidad'
     | '/admin/recursos'
     | '/admin/redes-sociales'
     | '/admin/reinicio'
@@ -980,6 +990,7 @@ export interface FileRouteTypes {
     | '/admin/podcasts'
     | '/admin/programas'
     | '/admin/programas-estudiantes'
+    | '/admin/publicidad'
     | '/admin/recursos'
     | '/admin/redes-sociales'
     | '/admin/reinicio'
@@ -1072,6 +1083,7 @@ export interface FileRouteTypes {
     | '/admin/podcasts'
     | '/admin/programas'
     | '/admin/programas-estudiantes'
+    | '/admin/publicidad'
     | '/admin/recursos'
     | '/admin/redes-sociales'
     | '/admin/reinicio'
@@ -1561,6 +1573,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminProgramasEstudiantesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/publicidad': {
+      id: '/admin/publicidad'
+      path: '/publicidad'
+      fullPath: '/admin/publicidad'
+      preLoaderRoute: typeof AdminPublicidadRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/recursos': {
       id: '/admin/recursos'
       path: '/recursos'
@@ -1825,6 +1844,7 @@ interface AdminRouteChildren {
   AdminPodcastsRoute: typeof AdminPodcastsRoute
   AdminProgramasRoute: typeof AdminProgramasRoute
   AdminProgramasEstudiantesRoute: typeof AdminProgramasEstudiantesRoute
+  AdminPublicidadRoute: typeof AdminPublicidadRoute
   AdminRecursosRoute: typeof AdminRecursosRoute
   AdminRedesSocialesRoute: typeof AdminRedesSocialesRoute
   AdminReinicioRoute: typeof AdminReinicioRoute
@@ -1861,6 +1881,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminPodcastsRoute: AdminPodcastsRoute,
   AdminProgramasRoute: AdminProgramasRoute,
   AdminProgramasEstudiantesRoute: AdminProgramasEstudiantesRoute,
+  AdminPublicidadRoute: AdminPublicidadRoute,
   AdminRecursosRoute: AdminRecursosRoute,
   AdminRedesSocialesRoute: AdminRedesSocialesRoute,
   AdminReinicioRoute: AdminReinicioRoute,
