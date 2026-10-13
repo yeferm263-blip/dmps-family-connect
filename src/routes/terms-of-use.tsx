@@ -18,9 +18,9 @@ export const Route = createFileRoute("/terms-of-use")({
         content: "Condiciones de uso cívico y comunitario para las familias de Des Moines, Iowa.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://familiasdmps.app/terms-of-use" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/terms-of-use" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/terms-of-use" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/terms-of-use" }],
   }),
   component: TermsOfUsePage,
 });

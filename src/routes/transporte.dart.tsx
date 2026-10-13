@@ -63,9 +63,9 @@ export const Route = createFileRoute("/transporte/dart")({
           "Toda la información, enlace de descarga y detalles de la aplicación oficial para las familias y estudiantes del distrito escolar.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://familiasdmps.app/transporte/dart" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/transporte/dart" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/transporte/dart" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/transporte/dart" }],
   }),
   component: AppArticlePublicPage,
 });

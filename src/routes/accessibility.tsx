@@ -24,9 +24,9 @@ export const Route = createFileRoute("/accessibility")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { property: "og:url", content: "https://familiasdmps.app/accessibility" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/accessibility" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/accessibility" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/accessibility" }],
   }),
   component: AccessibilityPage,
 });

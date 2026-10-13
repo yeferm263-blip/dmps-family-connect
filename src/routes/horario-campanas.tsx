@@ -21,9 +21,9 @@ export const Route = createFileRoute("/horario-campanas")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:url", content: "https://familiasdmps.app/horario-campanas" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/horario-campanas" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/horario-campanas" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/horario-campanas" }],
   }),
   component: BellSchedulePage,
 });

@@ -37,9 +37,9 @@ export const Route = createFileRoute("/programas")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:url", content: "https://familiasdmps.app/programas" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/programas" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/programas" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/programas" }],
   }),
   component: ProgramsPage,
 });

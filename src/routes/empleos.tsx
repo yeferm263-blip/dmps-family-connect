@@ -22,9 +22,9 @@ export const Route = createFileRoute("/empleos")({
           "Empleos verificados por la oficina de consejería para jóvenes de 14 a 18+ años en Des Moines.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://familiasdmps.app/empleos" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/empleos" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/empleos" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/empleos" }],
   }),
   component: EmpleosPage,
 });

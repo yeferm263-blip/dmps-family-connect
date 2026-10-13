@@ -18,9 +18,9 @@ export const Route = createFileRoute("/cookie-policy")({
         content: "Transparencia sobre el almacenamiento en el navegador para familias escolares.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://familiasdmps.app/cookie-policy" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/cookie-policy" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/cookie-policy" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/cookie-policy" }],
   }),
   component: CookiePolicyPage,
 });
@@ -45,8 +45,8 @@ function CookiePolicyPage() {
               <span>Storage Technology Overview</span>
             </h2>
             <p className="text-sm sm:text-base leading-relaxed text-foreground/90">
-              DMPS INFO does not deploy third-party advertising cookies or cross-site tracking
-              beacons. However, our interface relies on standard browser storage features (Cookies,{" "}
+              When ads are enabled, Google AdSense may set third-party advertising cookies (see
+              the Advertising section below). In addition, our interface relies on standard browser storage features (Cookies,{" "}
               <code>localStorage</code>, and <code>sessionStorage</code>) for functional operation,
               user preferences, and internal performance metrics.
             </p>
@@ -71,7 +71,7 @@ function CookiePolicyPage() {
                 <tbody className="divide-y divide-border/60">
                   <tr>
                     <td className="p-3 font-mono font-bold text-primary">sidebar_state</td>
-                    <td className="p-3 text-muted-foreground">familiasdmps.app</td>
+                    <td className="p-3 text-muted-foreground">dmpsinfo.lovable.app</td>
                     <td className="p-3">
                       Remembers whether the desktop side navigation panel is expanded or collapsed.
                     </td>
@@ -267,6 +267,21 @@ function CookiePolicyPage() {
               </span>
             </div>
           </section>
+          <section className="space-y-3">
+            <h2 className="text-xl font-bold text-foreground">Advertising: Advertising (Google AdSense)</h2>
+            <p className="text-sm sm:text-base leading-relaxed text-foreground/90">
+              This site may display ads served by Google AdSense. Third-party vendors, including
+              Google, use cookies to serve ads based on a user&apos;s prior visits to this website or
+              other websites. Google&apos;s use of advertising cookies enables it and its partners to
+              serve ads based on visits to this and other sites. You may opt out of personalized
+              advertising by visiting{" "}
+              <a className="text-primary underline" href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">Google Ads Settings</a>{" "}
+              or{" "}
+              <a className="text-primary underline" href="https://www.aboutads.info" target="_blank" rel="noopener noreferrer">www.aboutads.info</a>.
+              Learn more at{" "}
+              <a className="text-primary underline" href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">How Google uses data</a>.
+            </p>
+          </section>
         </article>
       ) : (
         <article className="space-y-8">
@@ -276,8 +291,8 @@ function CookiePolicyPage() {
               <span>Resumen de Tecnologías de Almacenamiento</span>
             </h2>
             <p className="text-sm sm:text-base leading-relaxed text-foreground/90">
-              DMPS INFO no utiliza cookies de redes publicitarias comerciales ni rastreadores entre
-              sitios web. Sin embargo, para que el portal recuerde su idioma, su escuela de
+              Cuando la publicidad está activa, Google AdSense puede usar cookies publicitarias de
+              terceros (vea la sección Publicidad más abajo). Además, para que el portal recuerde su idioma, su escuela de
               preferencia y sus podcasts, empleamos herramientas estándar de almacenamiento en el
               navegador: Cookies, <code>localStorage</code> y <code>sessionStorage</code>.
             </p>
@@ -302,7 +317,7 @@ function CookiePolicyPage() {
                 <tbody className="divide-y divide-border/60">
                   <tr>
                     <td className="p-3 font-mono font-bold text-primary">sidebar_state</td>
-                    <td className="p-3 text-muted-foreground">familiasdmps.app</td>
+                    <td className="p-3 text-muted-foreground">dmpsinfo.lovable.app</td>
                     <td className="p-3">
                       Recuerda si el panel lateral de navegación está abierto o plegado en la pantalla.
                     </td>
@@ -498,6 +513,21 @@ function CookiePolicyPage() {
                 al servidor.
               </span>
             </div>
+          </section>
+          <section className="space-y-3">
+            <h2 className="text-xl font-bold text-foreground">Publicidad: Publicidad (Google AdSense)</h2>
+            <p className="text-sm sm:text-base leading-relaxed text-foreground/90">
+              Este sitio puede mostrar anuncios de Google AdSense. Proveedores externos, incluido
+              Google, utilizan cookies para mostrar anuncios basados en las visitas anteriores del
+              usuario a este u otros sitios web. Las cookies de publicidad permiten a Google y a sus
+              socios mostrar anuncios según dichas visitas. Puede inhabilitar la publicidad
+              personalizada en la{" "}
+              <a className="text-primary underline" href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">Configuración de anuncios de Google</a>{" "}
+              o en{" "}
+              <a className="text-primary underline" href="https://www.aboutads.info" target="_blank" rel="noopener noreferrer">www.aboutads.info</a>.
+              Más información en{" "}
+              <a className="text-primary underline" href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">Cómo usa Google los datos</a>.
+            </p>
           </section>
         </article>
       )}

@@ -20,9 +20,9 @@ export const Route = createFileRoute("/apps")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { property: "og:url", content: "https://familiasdmps.app/apps" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/apps" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/apps" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/apps" }],
   }),
   component: AppsPage,
 });

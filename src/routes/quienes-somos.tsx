@@ -40,9 +40,9 @@ export const Route = createFileRoute("/quienes-somos")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
-      { property: "og:url", content: "https://familiasdmps.app/quienes-somos" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/quienes-somos" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/quienes-somos" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/quienes-somos" }],
   }),
   component: QuienesSomosPage,
 });

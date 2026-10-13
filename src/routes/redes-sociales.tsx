@@ -47,7 +47,7 @@ export const Route = createFileRoute("/redes-sociales")({
       },
       { property: "og:type", content: "website" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/redes-sociales" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/redes-sociales" }],
   }),
   component: RedesSocialesPage,
 });

@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://familiasdmps.app/sitemap.xml
+Sitemap: https://dmpsinfo.lovable.app/sitemap.xml

@@ -18,9 +18,9 @@ export const Route = createFileRoute("/information-disclaimer")({
         content: "Avisos sobre cambios imprevistos en calendarios y horarios escolares en Des Moines.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://familiasdmps.app/information-disclaimer" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/information-disclaimer" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/information-disclaimer" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/information-disclaimer" }],
   }),
   component: InformationDisclaimerPage,
 });

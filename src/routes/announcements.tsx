@@ -21,9 +21,9 @@ export const Route = createFileRoute("/announcements")({
         property: "og:description",
         content: "Feed oficial de avisos y alertas para familias de DMPS.",
       },
-      { property: "og:url", content: "https://familiasdmps.app/announcements" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/announcements" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/announcements" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/announcements" }],
   }),
   component: AnnouncementsPage,
 });
