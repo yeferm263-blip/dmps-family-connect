@@ -1,9 +1,9 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+// Intelligent Command Center: Google Gemini interprets admin commands against the
+// real Lovable Cloud database. Every function requires a signed-in content manager.
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
-import fs from "node:fs";
-import path from "node:path";
-import { GoogleGenAI } from "@google/genai";
+import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export type CommandIntentType =
   | "SEARCH_INFO"
@@ -64,18 +64,8 @@ export interface SearchInfoPayload {
     category_id?: string;
     tags?: string[];
   }>;
-  contacts?: Array<{
-    name: string;
-    role: string;
-    phone: string;
-    email?: string;
-    languages?: string[];
-  }>;
-  resources?: Array<{
-    title: string;
-    url: string;
-    description?: string;
-  }>;
+  contacts?: Array<{ name: string; role: string; phone: string; email?: string; languages?: string[] }>;
+  resources?: Array<{ title: string; url: string; description?: string }>;
 }
 
 export interface SportsEventsPayload {
@@ -122,11 +112,7 @@ export interface AuditSitePayload {
   expiredEvents: number;
   activeAnnouncements: number;
   urgentAlerts: number;
-  findings: Array<{
-    type: "warning" | "info" | "success" | "danger";
-    title: string;
-    description: string;
-  }>;
+  findings: Array<{ type: "warning" | "info" | "success" | "danger"; title: string; description: string }>;
   recommendations: string[];
 }
 
@@ -146,21 +132,11 @@ export interface CommandParsedResult {
     | AuditSitePayload
     | null;
   executed: boolean;
-  executionResult?: {
-    success: boolean;
-    id?: string;
-    message: string;
-  };
+  executionResult?: { success: boolean; id?: string; message: string };
 }
 
 export interface CommandCenterOverview {
-  articles: {
-    total: number;
-    published: number;
-    drafts: number;
-    lincoln: number;
-    east: number;
-  };
+  articles: { total: number; published: number; drafts: number; lincoln: number; east: number };
   events: {
     total: number;
     upcoming: number;
@@ -196,141 +172,14 @@ export interface CommandCenterOverview {
   };
 }
 
-// File path for the persistent JSON database
-function getDbFilePath(): string {
-  return path.join(process.cwd(), "data", "persistent_db.json");
-}
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
 
-function loadDatabase(): any {
-  try {
-    const file = getDbFilePath();
-    if (fs.existsSync(file)) {
-      const content = fs.readFileSync(file, "utf8");
-      return JSON.parse(content);
-    }
-  } catch (err) {
-    console.warn("[CommandCenter] Error reading persistent_db.json:", err);
-  }
-  return {
-    articles: [],
-    categories: [],
-    events: [],
-    announcements: [],
-    activities: [],
-    contacts: [],
-  };
-}
+type Db = any;
 
-function saveDatabase(db: any): boolean {
-  try {
-    const file = getDbFilePath();
-    fs.writeFileSync(file, JSON.stringify(db, null, 2), "utf8");
-    return true;
-  } catch (err) {
-    console.error("[CommandCenter] Error saving persistent_db.json:", err);
-    return false;
-  }
-}
-
-// In-memory action execution store for sessions
-const executedActionsLog: Array<{
-  id: string;
-  intent: CommandIntentType;
-  title: string;
-  executedAt: string;
-  details: string;
-}> = [];
-
-// Helper to calculate upcoming dates based on natural language expressions
-function calculateTargetDate(expression: string): { date: string; time: string } {
-  const now = new Date();
-  const lower = expression.toLowerCase();
-  const target = new Date(now);
-  let timeStr = "18:00";
-
-  // Time extraction
-  const timeMatch = lower.match(/(\d{1,2})\s*(?:[:.]\s*(\d{2}))?\s*(am|pm|hs|horas)?/i);
-  if (timeMatch) {
-    let hours = parseInt(timeMatch[1] ?? "18", 10);
-    const minutes = timeMatch[2] ? parseInt(timeMatch[2], 10) : 0;
-    const modifier = (timeMatch[3] || "").toLowerCase();
-
-    if (modifier === "pm" && hours < 12) hours += 12;
-    if (modifier === "am" && hours === 12) hours = 0;
-    timeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
-  }
-
-  // Day extraction
-  if (lower.includes("hoy")) {
-    // Keep target as today
-  } else if (lower.includes("mañana")) {
-    target.setDate(target.getDate() + 1);
-  } else if (lower.includes("pasado mañana")) {
-    target.setDate(target.getDate() + 2);
-  } else if (lower.includes("viernes")) {
-    const day = target.getDay();
-    const diff = (5 - day + 7) % 7 || 7;
-    target.setDate(target.getDate() + diff);
-  } else if (lower.includes("sábado") || lower.includes("sabado")) {
-    const day = target.getDay();
-    const diff = (6 - day + 7) % 7 || 7;
-    target.setDate(target.getDate() + diff);
-  } else if (lower.includes("domingo")) {
-    const day = target.getDay();
-    const diff = (7 - day + 7) % 7 || 7;
-    target.setDate(target.getDate() + diff);
-  } else if (lower.includes("lunes")) {
-    const day = target.getDay();
-    const diff = (1 - day + 7) % 7 || 7;
-    target.setDate(target.getDate() + diff);
-  } else if (lower.includes("martes")) {
-    const day = target.getDay();
-    const diff = (2 - day + 7) % 7 || 7;
-    target.setDate(target.getDate() + diff);
-  } else if (lower.includes("miércoles") || lower.includes("miercoles")) {
-    const day = target.getDay();
-    const diff = (3 - day + 7) % 7 || 7;
-    target.setDate(target.getDate() + diff);
-  } else if (lower.includes("jueves")) {
-    const day = target.getDay();
-    const diff = (4 - day + 7) % 7 || 7;
-    target.setDate(target.getDate() + diff);
-  } else {
-    // Specific date matching like "25 de octubre"
-    const monthMap: Record<string, number> = {
-      enero: 0,
-      febrero: 1,
-      marzo: 2,
-      abril: 3,
-      mayo: 4,
-      junio: 5,
-      julio: 6,
-      agosto: 7,
-      septiembre: 8,
-      octubre: 9,
-      noviembre: 10,
-      diciembre: 11,
-    };
-    const dateMatch = lower.match(
-      /(\d{1,2})\s+de\s+(enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)/i,
-    );
-    if (dateMatch) {
-      const d = parseInt(dateMatch[1] ?? "1", 10);
-      const m = monthMap[dateMatch[2]?.toLowerCase() ?? ""];
-      if (m !== undefined) {
-        target.setMonth(m, d);
-      }
-    } else {
-      target.setDate(target.getDate() + 3);
-    }
-  }
-
-  const yyyy = target.getFullYear();
-  const mm = String(target.getMonth() + 1).padStart(2, "0");
-  const dd = String(target.getDate()).padStart(2, "0");
-
-  return { date: `${yyyy}-${mm}-${dd}`, time: timeStr };
-}
+const SCHOOL_LABEL = (id: string | null | undefined) =>
+  id === "east" ? "East High" : id === "lincoln" ? "Lincoln High" : "Distrito";
 
 function slugify(text: string): string {
   return text
@@ -342,1217 +191,558 @@ function slugify(text: string): string {
     .slice(0, 60);
 }
 
-/**
- * 1. Overview Server Function: Get live metrics for the voice & control center
- */
-export const getCommandCenterOverview = createServerFn({ method: "GET" }).handler(
-  async (): Promise<CommandCenterOverview> => {
-    const db = loadDatabase();
-    const articles = db.articles || [];
-    const events = db.events || [];
-    const announcements = db.announcements || [];
-    const categories = db.categories || [];
+function newId(prefix: string) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
 
-    const nowIso = new Date().toISOString().slice(0, 10);
-    const upcomingEvents = events.filter((e: any) => !e.start_date || e.start_date >= nowIso);
-    const cancelledEvents = events.filter(
-      (e: any) => Boolean(e.is_cancelled) || e.status === "cancelled",
+function scopeToSchool(scope: string | undefined | null): string | null {
+  return scope === "lincoln" || scope === "east" ? scope : null;
+}
+
+function chicagoNow() {
+  return new Date().toLocaleString("es-US", {
+    timeZone: "America/Chicago",
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+async function assertContentManager(supabase: Db) {
+  const { data, error } = await supabase.rpc("can_manage_content");
+  if (error || !data) throw new Error("No tienes permiso para usar el Centro de Mando.");
+}
+
+async function loadSnapshot(supabase: Db) {
+  const [articles, categories, events, announcements, annTr, activities, contacts] = await Promise.all([
+    supabase
+      .from("articles")
+      .select("id, slug, title, summary, status, school_id, category_id, category_ids, updated_at")
+      .order("updated_at", { ascending: false })
+      .limit(300),
+    supabase.from("categories").select("id, name, slug").order("display_order"),
+    supabase
+      .from("events")
+      .select("id, title, description, starts_at, start_time, location, event_type, school_id, status, is_cancelled")
+      .order("starts_at", { ascending: true })
+      .limit(300),
+    supabase
+      .from("announcements")
+      .select("id, level, priority, status, school_id, show_in_ticker, show_on_home, published_at, created_at, expires_at")
+      .order("created_at", { ascending: false })
+      .limit(100),
+    supabase.from("announcement_translations").select("announcement_id, language_code, title, message"),
+    supabase
+      .from("activities")
+      .select("id, name, season, grades, official_url, school_id, activity_type, status")
+      .limit(200),
+    supabase
+      .from("contacts")
+      .select("id, person_name, role_title, job_title, department, phone, email, languages, school_id, is_visible")
+      .limit(200),
+  ]);
+
+  const trMap = new Map<string, any>();
+  for (const t of annTr.data ?? []) {
+    if (!trMap.has(t.announcement_id) || t.language_code === "es") trMap.set(t.announcement_id, t);
+  }
+
+  return {
+    articles: articles.data ?? [],
+    categories: categories.data ?? [],
+    events: (events.data ?? []).map((e: any) => ({
+      ...e,
+      start_date: e.starts_at ? String(e.starts_at).slice(0, 10) : "",
+    })),
+    announcements: (announcements.data ?? []).map((a: any) => ({
+      ...a,
+      title: trMap.get(a.id)?.title ?? "Aviso",
+      message: trMap.get(a.id)?.message ?? "",
+    })),
+    activities: activities.data ?? [],
+    contacts: contacts.data ?? [],
+  };
+}
+
+type Snapshot = Awaited<ReturnType<typeof loadSnapshot>>;
+
+function buildAudit(s: Snapshot): AuditSitePayload {
+  const today = new Date().toISOString().slice(0, 10);
+  const published = s.articles.filter((a: any) => a.status === "published");
+  const drafts = s.articles.filter((a: any) => a.status === "draft");
+  const upcoming = s.events.filter((e: any) => e.start_date >= today);
+  const expired = s.events.filter((e: any) => e.start_date && e.start_date < today);
+  const activeAnn = s.announcements.filter((a: any) => a.status === "published");
+  const urgent = activeAnn.filter((a: any) => a.level === "urgent");
+  const noSummary = published.filter((a: any) => !a.summary || String(a.summary).trim().length < 10);
+  const stale = published.filter(
+    (a: any) => a.updated_at && Date.now() - new Date(a.updated_at).getTime() > 1000 * 60 * 60 * 24 * 180,
+  );
+
+  const findings: AuditSitePayload["findings"] = [];
+  if (drafts.length) findings.push({ type: "info", title: `${drafts.length} artículos en borrador`, description: "Revísalos y publícalos si ya están listos." });
+  if (noSummary.length) findings.push({ type: "warning", title: `${noSummary.length} artículos sin resumen`, description: noSummary.slice(0, 5).map((a: any) => a.title).join(" · ") });
+  if (stale.length) findings.push({ type: "warning", title: `${stale.length} artículos sin actualizar en 6+ meses`, description: stale.slice(0, 5).map((a: any) => a.title).join(" · ") });
+  if (!upcoming.length) findings.push({ type: "danger", title: "No hay eventos próximos", description: "El calendario público se verá vacío." });
+  if (urgent.length) findings.push({ type: "danger", title: `${urgent.length} alertas urgentes activas`, description: "Confirma que sigan vigentes." });
+  if (!findings.length) findings.push({ type: "success", title: "Todo en orden", description: "No se detectaron problemas." });
+
+  const recommendations: string[] = [];
+  if (noSummary.length) recommendations.push("Agrega resúmenes cortos a los artículos sin descripción.");
+  if (stale.length) recommendations.push("Verifica la información de los artículos antiguos.");
+  if (upcoming.length < 3) recommendations.push("Programa más eventos próximos en el calendario.");
+  if (expired.length > 20) recommendations.push("Archiva eventos pasados para mantener el calendario limpio.");
+
+  return {
+    summary: `${published.length} artículos publicados, ${upcoming.length} eventos próximos y ${activeAnn.length} avisos activos.`,
+    totalArticles: s.articles.length,
+    draftArticles: drafts.length,
+    publishedArticles: published.length,
+    totalEvents: s.events.length,
+    upcomingEvents: upcoming.length,
+    expiredEvents: expired.length,
+    activeAnnouncements: activeAnn.length,
+    urgentAlerts: urgent.length,
+    findings,
+    recommendations,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Gemini
+// ---------------------------------------------------------------------------
+
+const GEMINI_MODEL = "gemini-2.5-flash";
+
+async function askGemini(system: string, user: string): Promise<any> {
+  const key = process.env["GEMINI_API_KEY"];
+  if (!key) throw new Error("Falta la clave de Gemini (GEMINI_API_KEY).");
+
+  let lastErr = "";
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": key },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ role: "user", parts: [{ text: user }] }],
+          generationConfig: { responseMimeType: "application/json", temperature: 0.3 },
+        }),
+      },
     );
+    if (res.ok) {
+      const json: any = await res.json();
+      const text = json?.candidates?.[0]?.content?.parts?.map((p: any) => p.text ?? "").join("") ?? "";
+      try {
+        return JSON.parse(text.replace(/^```json\s*|```$/g, ""));
+      } catch {
+        throw new Error("Gemini devolvió una respuesta que no se pudo interpretar. Intenta de nuevo.");
+      }
+    }
+    lastErr = `${res.status}: ${(await res.text()).slice(0, 200)}`;
+    if (res.status === 429 || res.status >= 500) {
+      await new Promise((r) => setTimeout(r, 800 * (attempt + 1) + Math.random() * 400));
+      continue;
+    }
+    break;
+  }
+  if (lastErr.startsWith("429")) throw new Error("Gemini alcanzó su límite gratuito por minuto. Espera un momento e intenta otra vez.");
+  throw new Error(`Gemini no respondió correctamente (${lastErr}).`);
+}
+
+function compactContext(s: Snapshot, schoolScope?: string) {
+  const today = new Date().toISOString().slice(0, 10);
+  return {
+    escuela_seleccionada: schoolScope || "all",
+    categorias: s.categories.map((c: any) => ({ id: c.id, nombre: c.name })),
+    articulos: s.articles.map((a: any) => ({
+      id: a.id,
+      titulo: a.title,
+      resumen: String(a.summary ?? "").slice(0, 160),
+      estado: a.status,
+      escuela: a.school_id,
+      categoria: a.category_id,
+    })),
+    eventos: s.events
+      .filter((e: any) => !e.start_date || e.start_date >= today)
+      .slice(0, 80)
+      .map((e: any) => ({
+        id: e.id,
+        titulo: e.title,
+        fecha: e.start_date,
+        hora: e.start_time,
+        lugar: e.location,
+        tipo: e.event_type,
+        escuela: e.school_id,
+        cancelado: Boolean(e.is_cancelled),
+        estado: e.status,
+      })),
+    avisos: s.announcements.slice(0, 30).map((a: any) => ({
+      id: a.id,
+      titulo: a.title,
+      nivel: a.level,
+      estado: a.status,
+      en_marquesina: a.show_in_ticker,
+    })),
+    deportes_actividades: s.activities.map((a: any) => ({
+      id: a.id,
+      nombre: a.name,
+      temporada: a.season,
+      escuela: a.school_id,
+    })),
+    contactos: s.contacts
+      .filter((c: any) => c.is_visible !== false)
+      .slice(0, 80)
+      .map((c: any) => ({
+        nombre: c.person_name || c.department,
+        cargo: c.job_title || c.role_title,
+        telefono: c.phone,
+        email: c.email,
+        escuela: c.school_id,
+      })),
+  };
+}
+
+const SYSTEM_PROMPT = `Eres el asistente del Centro de Mando de "DMPS Family Info", un sitio para familias de Des Moines Public Schools (Lincoln High y East High). Hablas español claro y amable.
+Recibirás la orden del administrador y una instantánea REAL de la base de datos. Nunca inventes registros: para buscar o modificar usa solo IDs que existan en la instantánea.
+Devuelve SOLO un JSON con esta forma:
+{
+ "intent": "SEARCH_INFO" | "SEARCH_SPORTS_EVENTS" | "CREATE_ARTICLE" | "CREATE_EVENT" | "CREATE_ANNOUNCEMENT" | "MODIFY_CONTENT" | "AUDIT_SITE" | "GENERAL_INFO",
+ "immediateExecution": boolean,   // true SOLO si el admin pidió explícitamente publicar/aplicar ya, sin confirmar
+ "aiExplanation": string,          // 1-3 frases explicando qué entendiste y qué propones
+ "spokenResponse": string,         // respuesta breve y natural para leer en voz alta (máx. 2 frases)
+ "payload": object | null
+}
+Payload según intent:
+- SEARCH_INFO: {"answer": string, "article_ids": string[], "include_contacts": boolean}
+- SEARCH_SPORTS_EVENTS: {"summary": string, "event_ids": string[], "activity_ids": string[]}
+- CREATE_ARTICLE: {"title","summary","content" (HTML bien estructurado con <h2>,<p>,<ul>, en español, completo y útil),"category_id" (de la lista),"school_scope":"lincoln"|"east"|"all","status":"draft"|"published","tags":string[]}
+- CREATE_EVENT: {"title","description","start_date":"YYYY-MM-DD","start_time":"HH:mm","location","event_type":"sports"|"academic"|"meeting"|"community"|"general","school_scope","all_day":boolean}
+- CREATE_ANNOUNCEMENT: {"title","message","level":"info"|"warning"|"urgent","priority":"high"|"normal"|"low","school_scope","show_in_ticker":boolean,"show_on_home":boolean}
+- MODIFY_CONTENT: {"targetType":"event"|"article"|"announcement","targetId": id existente,"changeDescription": string,"fieldsToUpdate": object}
+   Campos permitidos: evento → title, description, location, start_date, start_time, is_cancelled, status, is_featured; artículo → title, summary, status, is_featured, category_id, school_id; aviso → status, level, show_in_ticker, show_on_home. status ∈ draft|published|archived.
+- AUDIT_SITE: {} (el sistema calcula la auditoría)
+- GENERAL_INFO: null
+Las fechas relativas ("este viernes", "mañana") se calculan a partir de la fecha actual indicada. Si falta información para crear algo, usa valores razonables y dilo en aiExplanation. Si la orden es ambigua sobre qué registro modificar, usa GENERAL_INFO y pide aclaración.`;
+
+const ALLOWED_FIELDS: Record<string, string[]> = {
+  event: ["title", "description", "location", "start_date", "start_time", "is_cancelled", "status", "is_featured"],
+  article: ["title", "summary", "status", "is_featured", "category_id", "school_id"],
+  announcement: ["status", "level", "show_in_ticker", "show_on_home"],
+};
+
+const FIELD_LABELS: Record<string, string> = {
+  title: "Título",
+  description: "Descripción",
+  location: "Lugar",
+  start_date: "Fecha",
+  start_time: "Hora",
+  is_cancelled: "Cancelado",
+  status: "Estado",
+  is_featured: "Destacado",
+  summary: "Resumen",
+  category_id: "Categoría",
+  school_id: "Escuela",
+  level: "Nivel",
+  show_in_ticker: "Marquesina",
+  show_on_home: "Portada",
+};
+
+function buildResult(raw: any, s: Snapshot, query: string, schoolScope?: string): CommandParsedResult {
+  const intent: CommandIntentType = [
+    "SEARCH_INFO",
+    "SEARCH_SPORTS_EVENTS",
+    "CREATE_ARTICLE",
+    "CREATE_EVENT",
+    "CREATE_ANNOUNCEMENT",
+    "MODIFY_CONTENT",
+    "AUDIT_SITE",
+    "GENERAL_INFO",
+  ].includes(raw?.intent)
+    ? raw.intent
+    : "GENERAL_INFO";
+  const p = raw?.payload ?? {};
+  const base = {
+    intent,
+    immediateExecution: Boolean(raw?.immediateExecution),
+    userQuery: query,
+    aiExplanation: String(raw?.aiExplanation ?? ""),
+    spokenResponse: String(raw?.spokenResponse ?? raw?.aiExplanation ?? "Listo."),
+    executed: false,
+  };
+  const defScope = (p.school_scope ?? schoolScope ?? "all") as "lincoln" | "east" | "all";
+  const catName = (id: string) => s.categories.find((c: any) => c.id === id)?.name;
+
+  switch (intent) {
+    case "SEARCH_INFO": {
+      const ids: string[] = Array.isArray(p.article_ids) ? p.article_ids : [];
+      const articles = ids
+        .map((id) => s.articles.find((a: any) => a.id === id))
+        .filter(Boolean)
+        .map((a: any) => ({
+          id: a.id,
+          slug: a.slug,
+          title: a.title ?? "",
+          summary: a.summary ?? "",
+          school_id: a.school_id,
+          category_id: a.category_id,
+          category_name: catName(a.category_id),
+        }));
+      const contacts = p.include_contacts
+        ? s.contacts
+            .filter((c: any) => c.is_visible !== false && c.phone)
+            .slice(0, 4)
+            .map((c: any) => ({
+              name: c.person_name || c.department || "Contacto",
+              role: c.job_title || c.role_title || "",
+              phone: c.phone,
+              email: c.email ?? undefined,
+              languages: c.languages ?? undefined,
+            }))
+        : [];
+      return { ...base, payload: { query, answer: String(p.answer ?? base.aiExplanation), articles, contacts } };
+    }
+    case "SEARCH_SPORTS_EVENTS": {
+      const evIds: string[] = Array.isArray(p.event_ids) ? p.event_ids : [];
+      const acIds: string[] = Array.isArray(p.activity_ids) ? p.activity_ids : [];
+      return {
+        ...base,
+        payload: {
+          query,
+          summary: String(p.summary ?? base.aiExplanation),
+          events: evIds
+            .map((id) => s.events.find((e: any) => e.id === id))
+            .filter(Boolean)
+            .map((e: any) => ({
+              id: e.id,
+              title: e.title ?? "Evento",
+              start_date: e.start_date,
+              start_time: e.start_time ?? undefined,
+              location: e.location ?? "",
+              school_id: e.school_id,
+              event_type: e.event_type ?? "general",
+              is_cancelled: Boolean(e.is_cancelled),
+              status: e.status,
+            })),
+          activities: acIds
+            .map((id) => s.activities.find((a: any) => a.id === id))
+            .filter(Boolean)
+            .map((a: any) => ({
+              id: a.id,
+              name: a.name,
+              season: a.season ?? "",
+              grades: a.grades ?? "",
+              official_url: a.official_url ?? "",
+              school_id: a.school_id ?? "",
+            })),
+        },
+      };
+    }
+    case "CREATE_ARTICLE": {
+      const catId = s.categories.some((c: any) => c.id === p.category_id)
+        ? p.category_id
+        : (s.categories[0]?.id ?? "");
+      const title = String(p.title ?? "Nuevo artículo");
+      return {
+        ...base,
+        payload: {
+          title,
+          summary: String(p.summary ?? ""),
+          content: String(p.content ?? ""),
+          category_id: catId,
+          category_name: catName(catId) ?? "",
+          school_scope: defScope,
+          status: p.status === "published" ? "published" : "draft",
+          slug: slugify(title),
+          tags: Array.isArray(p.tags) ? p.tags : [],
+        },
+      };
+    }
+    case "CREATE_EVENT":
+      return {
+        ...base,
+        payload: {
+          title: String(p.title ?? "Nuevo evento"),
+          description: String(p.description ?? ""),
+          start_date: String(p.start_date ?? new Date().toISOString().slice(0, 10)),
+          start_time: String(p.start_time ?? "18:00"),
+          location: String(p.location ?? ""),
+          event_type: ["sports", "academic", "meeting", "community", "general"].includes(p.event_type)
+            ? p.event_type
+            : "general",
+          school_scope: defScope,
+          all_day: Boolean(p.all_day),
+        },
+      };
+    case "CREATE_ANNOUNCEMENT":
+      return {
+        ...base,
+        payload: {
+          title: String(p.title ?? "Aviso"),
+          message: String(p.message ?? ""),
+          level: ["info", "warning", "urgent"].includes(p.level) ? p.level : "info",
+          priority: ["high", "normal", "low"].includes(p.priority) ? p.priority : "normal",
+          school_scope: defScope,
+          show_in_ticker: p.show_in_ticker ?? true,
+          show_on_home: p.show_on_home ?? true,
+        },
+      };
+    case "MODIFY_CONTENT": {
+      const type = p.targetType as "event" | "article" | "announcement";
+      const list = type === "event" ? s.events : type === "article" ? s.articles : type === "announcement" ? s.announcements : [];
+      const target: any = list.find((r: any) => r.id === p.targetId);
+      if (!target) {
+        return {
+          ...base,
+          intent: "GENERAL_INFO",
+          payload: null,
+          aiExplanation: "No encontré el registro que quieres modificar. ¿Puedes decirme el título exacto?",
+          spokenResponse: "No encontré ese registro. ¿Me dices el título exacto?",
+        };
+      }
+      const fields: Record<string, any> = {};
+      const diff: ModifyContentPayload["diff"] = [];
+      for (const [k, v] of Object.entries(p.fieldsToUpdate ?? {})) {
+        if (!ALLOWED_FIELDS[type]?.includes(k)) continue;
+        fields[k] = v;
+        diff.push({ field: k, label: FIELD_LABELS[k] ?? k, from: target[k] ?? null, to: v });
+      }
+      return {
+        ...base,
+        payload: {
+          targetType: type,
+          targetId: target.id,
+          targetTitle: target.title ?? target.id,
+          changeDescription: String(p.changeDescription ?? "Actualización"),
+          fieldsToUpdate: fields,
+          previousValues: Object.fromEntries(diff.map((d) => [d.field, d.from])),
+          diff,
+        },
+      };
+    }
+    case "AUDIT_SITE":
+      return { ...base, payload: buildAudit(s) };
+    default:
+      return { ...base, intent: "GENERAL_INFO", payload: null };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Server functions
+// ---------------------------------------------------------------------------
+
+export const getCommandCenterOverview = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }): Promise<CommandCenterOverview> => {
+    const supabase = context.supabase as Db;
+    await assertContentManager(supabase);
+    const s = await loadSnapshot(supabase);
+    const today = new Date().toISOString().slice(0, 10);
+    const upcoming = s.events.filter((e: any) => e.start_date >= today);
+    const cancelled = s.events.filter((e: any) => e.is_cancelled);
+    const active = s.announcements.filter((a: any) => a.status === "published");
 
     return {
       articles: {
-        total: articles.length,
-        published: articles.filter((a: any) => a.status === "published" || !a.status).length,
-        drafts: articles.filter((a: any) => a.status === "draft").length,
-        lincoln: articles.filter((a: any) => a.school_id === "lincoln").length,
-        east: articles.filter((a: any) => a.school_id === "east").length,
+        total: s.articles.length,
+        published: s.articles.filter((a: any) => a.status === "published").length,
+        drafts: s.articles.filter((a: any) => a.status === "draft").length,
+        lincoln: s.articles.filter((a: any) => a.school_id === "lincoln").length,
+        east: s.articles.filter((a: any) => a.school_id === "east").length,
       },
       events: {
-        total: events.length,
-        upcoming: upcomingEvents.length,
-        sports: events.filter((e: any) => e.event_type === "sports").length,
-        cancelled: cancelledEvents.length,
-        nextEvents: upcomingEvents.slice(0, 5).map((e: any) => ({
+        total: s.events.length,
+        upcoming: upcoming.length,
+        sports: s.events.filter((e: any) => e.event_type === "sports").length,
+        cancelled: cancelled.length,
+        nextEvents: upcoming.slice(0, 5).map((e: any) => ({
           id: e.id,
           title: e.title || "Evento escolar",
-          date: e.start_date ? `${e.start_date} ${e.start_time || ""}` : "Próximamente",
-          location: e.location || "DMPS Sede Principal",
-          school:
-            e.school_id === "east"
-              ? "East High"
-              : e.school_id === "lincoln"
-                ? "Lincoln High"
-                : "Distrito",
+          date: `${e.start_date} ${e.start_time || ""}`.trim(),
+          location: e.location || "",
+          school: SCHOOL_LABEL(e.school_id),
           is_cancelled: Boolean(e.is_cancelled),
         })),
       },
       announcements: {
-        total: announcements.length,
-        active: announcements.filter((a: any) => a.status !== "archived").length,
-        urgent: announcements.filter((a: any) => a.level === "urgent" && a.status !== "archived")
-          .length,
-        tickerCount: announcements.filter((a: any) => a.show_in_ticker && a.status !== "archived")
-          .length,
-        latestAnnouncements: announcements.slice(0, 4).map((a: any) => ({
+        total: s.announcements.length,
+        active: active.length,
+        urgent: active.filter((a: any) => a.level === "urgent").length,
+        tickerCount: active.filter((a: any) => a.show_in_ticker).length,
+        latestAnnouncements: s.announcements.slice(0, 4).map((a: any) => ({
           id: a.id,
-          title: a.title || "Aviso institucional",
+          title: a.title,
           level: a.level || "info",
           created_at: a.published_at || a.created_at || new Date().toISOString(),
           show_in_ticker: Boolean(a.show_in_ticker),
         })),
       },
-      categories: categories.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug })),
+      categories: s.categories.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug })),
       systemHealth: {
-        status: cancelledEvents.length > 0 ? "needs_attention" : "optimal",
-        message: `${articles.length} artículos oficiales, ${events.length} eventos en calendario (${cancelledEvents.length} cancelados) y ${announcements.length} avisos.`,
-        lastAuditAt: new Date().toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" }),
-      },
-    };
-  },
-);
-
-/**
- * 2. Process Intent Server Function: Deep Search, Entity Extraction, Changes & Creation
- */
-export const processCommandIntent = createServerFn({ method: "POST" })
-  .validator((d: unknown) =>
-    z
-      .object({
-        query: z.string().min(1).max(500),
-        schoolScope: z.string().optional(),
-      })
-      .parse(d),
-  )
-  .handler(async ({ data }): Promise<CommandParsedResult> => {
-    const rawQuery = data.query.trim();
-    const lower = rawQuery.toLowerCase();
-    const db = loadDatabase();
-
-    // Check if immediate publication was commanded
-    const immediateExecution = Boolean(
-      lower.includes("publica de inmediato") ||
-      lower.includes("publica inmediatamente") ||
-      lower.includes("publica ya") ||
-      lower.includes("de inmediato") ||
-      lower.includes("inmediatamente") ||
-      lower.includes("sin confirmar") ||
-      lower.includes("aplica ya") ||
-      lower.includes("cancela de inmediato") ||
-      lower.includes("ejecuta ya") ||
-      lower.includes("hazlo ya"),
-    );
-
-    // School Scope extraction
-    let schoolScope: "lincoln" | "east" | "all" = "all";
-    if (lower.includes("lincoln")) {
-      schoolScope = "lincoln";
-    } else if (lower.includes("east")) {
-      schoolScope = "east";
-    } else if (data.schoolScope === "lincoln" || data.schoolScope === "east") {
-      schoolScope = data.schoolScope;
-    }
-
-    // =========================================================================
-    // INTENT A: REAL CHANGES / MODIFICATIONS TO EXISTING RECORDS (MUTATIONS)
-    // =========================================================================
-    const isChangeOrModify =
-      lower.includes("cancela") ||
-      lower.includes("cancelar") ||
-      lower.includes("suspende") ||
-      lower.includes("suspender") ||
-      lower.includes("reactiva") ||
-      lower.includes("reactivar") ||
-      lower.includes("cambia el horario") ||
-      lower.includes("cambia la hora") ||
-      lower.includes("cambia la fecha") ||
-      lower.includes("mueve el") ||
-      lower.includes("pospone") ||
-      lower.includes("posponer") ||
-      lower.includes("archiva") ||
-      lower.includes("archivar") ||
-      lower.includes("publica el borrador") ||
-      lower.includes("destaca el artículo") ||
-      lower.includes("desactiva la alerta") ||
-      lower.includes("desactiva el aviso") ||
-      lower.includes("retira el aviso") ||
-      lower.includes("quita la alerta") ||
-      lower.includes("elimina el evento") ||
-      lower.includes("eliminar el evento");
-
-    if (isChangeOrModify) {
-      // 1. Cancel / Suspend / Reactivate / Reschedule an Event
-      if (
-        lower.includes("partido") ||
-        lower.includes("evento") ||
-        lower.includes("baloncesto") ||
-        lower.includes("conferencia") ||
-        lower.includes("taller") ||
-        lower.includes("reunión") ||
-        lower.includes("reunion")
-      ) {
-        const events = db.events || [];
-        const isReactivating = lower.includes("reactiva") || lower.includes("habilita");
-        const isRescheduling =
-          lower.includes("cambia") || lower.includes("mueve") || lower.includes("pospone");
-        const isDeleting = lower.includes("elimina");
-
-        // Target event matching
-        let targetEvent = events.find((e: any) => {
-          const tL = (e.title || "").toLowerCase();
-          if (lower.includes("baloncesto") || lower.includes("basketball")) {
-            if (lower.includes("east") && tL.includes("east")) return true;
-            if (lower.includes("lincoln") && tL.includes("lincoln")) return true;
-            return tL.includes("baloncesto");
-          }
-          if (lower.includes("conferencia") && tL.includes("conferencia")) return true;
-          if (lower.includes("fafsa") && tL.includes("fafsa")) return true;
-          if (lower.includes("mesa directiva") || lower.includes("board"))
-            return tL.includes("board") || tL.includes("mesa directiva");
-          if (lower.includes("east") && (e.school_id === "east" || tL.includes("east")))
-            return true;
-          if (lower.includes("lincoln") && (e.school_id === "lincoln" || tL.includes("lincoln")))
-            return true;
-          return false;
-        });
-
-        if (!targetEvent && events.length > 0) {
-          targetEvent = events[0];
-        }
-
-        if (targetEvent) {
-          let fieldsToUpdate: Record<string, any> = {};
-          let changeDescription = "";
-          let diff: Array<{ field: string; label: string; from: any; to: any }> = [];
-
-          if (isDeleting) {
-            fieldsToUpdate = { status: "archived", is_deleted: true };
-            changeDescription = `Archivar y retirar evento "${targetEvent.title}" del calendario escolar.`;
-            diff = [
-              {
-                field: "status",
-                label: "Estado",
-                from: targetEvent.status || "published",
-                to: "archived",
-              },
-            ];
-          } else if (isReactivating) {
-            fieldsToUpdate = { is_cancelled: false, status: "published" };
-            changeDescription = `Reactivar el evento "${targetEvent.title}" y restaurar su estado a programado.`;
-            diff = [
-              {
-                field: "is_cancelled",
-                label: "Cancelado",
-                from: Boolean(targetEvent.is_cancelled),
-                to: false,
-              },
-              { field: "status", label: "Estado", from: targetEvent.status, to: "published" },
-            ];
-          } else if (isRescheduling) {
-            const { date, time } = calculateTargetDate(rawQuery);
-            fieldsToUpdate = {};
-            if (lower.includes("hora") || lower.includes("horario") || time !== "18:00") {
-              fieldsToUpdate.start_time = time;
-              diff.push({
-                field: "start_time",
-                label: "Hora",
-                from: targetEvent.start_time || "18:00",
-                to: time,
-              });
-            }
-            if (
-              lower.includes("fecha") ||
-              lower.includes("sábado") ||
-              lower.includes("domingo") ||
-              lower.includes("viernes") ||
-              lower.includes("de octubre")
-            ) {
-              fieldsToUpdate.start_date = date;
-              diff.push({
-                field: "start_date",
-                label: "Fecha",
-                from: targetEvent.start_date,
-                to: date,
-              });
-            }
-            if (
-              lower.includes("lugar") ||
-              lower.includes("gimnasio") ||
-              lower.includes("estadio")
-            ) {
-              const newLoc = lower.includes("mediacom")
-                ? "Mediacom Stadium"
-                : lower.includes("gimnasio")
-                  ? "Gimnasio Principal"
-                  : "Auditorio Escolar";
-              fieldsToUpdate.location = newLoc;
-              diff.push({
-                field: "location",
-                label: "Ubicación",
-                from: targetEvent.location,
-                to: newLoc,
-              });
-            }
-            changeDescription = `Reprogramar "${targetEvent.title}" a ${fieldsToUpdate.start_date || targetEvent.start_date} ${fieldsToUpdate.start_time || targetEvent.start_time}.`;
-          } else {
-            // Standard cancellation
-            fieldsToUpdate = {
-              is_cancelled: true,
-              status: "cancelled",
-              cancellation_reason: lower.includes("clima")
-                ? "Suspendido por condiciones climáticas severas en Des Moines"
-                : "Cancelado por decisión institucional de DMPS",
-            };
-            changeDescription = `Marcar "${targetEvent.title}" como CANCELADO / SUSPENDIDO en el calendario oficial.`;
-            diff = [
-              {
-                field: "is_cancelled",
-                label: "Cancelado",
-                from: Boolean(targetEvent.is_cancelled),
-                to: true,
-              },
-              {
-                field: "status",
-                label: "Estado",
-                from: targetEvent.status || "published",
-                to: "cancelled",
-              },
-            ];
-          }
-
-          const payload: ModifyContentPayload = {
-            targetType: "event",
-            targetId: targetEvent.id,
-            targetTitle: targetEvent.title,
-            changeDescription,
-            fieldsToUpdate,
-            previousValues: {
-              is_cancelled: Boolean(targetEvent.is_cancelled),
-              status: targetEvent.status,
-              start_date: targetEvent.start_date,
-              start_time: targetEvent.start_time,
-              location: targetEvent.location,
-            },
-            diff,
-          };
-
-          let executed = false;
-          let executionResult: { success: boolean; id?: string; message: string } | undefined;
-
-          if (immediateExecution) {
-            const exec = await internalModifyContent(payload);
-            executed = exec.success;
-            executionResult = exec;
-          }
-
-          const spokenResponse = immediateExecution
-            ? `Cambio aplicado en tiempo real: ${changeDescription}`
-            : `He preparado el cambio para el evento "${targetEvent.title}". ${diff.map((d) => `${d.label} cambiará a ${d.to}`).join(", ")}. Por favor confirma en pantalla.`;
-
-          return {
-            intent: "MODIFY_CONTENT",
-            immediateExecution,
-            userQuery: rawQuery,
-            aiExplanation: `Acción directa sobre la base de datos de eventos: se actualizarán los campos en el registro oficial.`,
-            spokenResponse,
-            payload,
-            executed,
-            executionResult,
-          };
-        }
-      }
-
-      // 2. Publish / Archive / Feature an Article
-      if (
-        lower.includes("artículo") ||
-        lower.includes("articulo") ||
-        lower.includes("borrador") ||
-        lower.includes("guía") ||
-        lower.includes("guia")
-      ) {
-        const articles = db.articles || [];
-        const isPublishing = lower.includes("publica") || lower.includes("publicar");
-        const isFeaturing = lower.includes("destaca") || lower.includes("destacar");
-
-        const targetArticle =
-          articles.find((a: any) => {
-            const tL = (a.title || "").toLowerCase();
-            if (lower.includes("examen") && tL.includes("examen")) return true;
-            if (lower.includes("transporte") && tL.includes("transporte")) return true;
-            if (lower.includes("infinite campus") && tL.includes("infinite")) return true;
-            if (isPublishing && a.status === "draft") return true;
-            return false;
-          }) || articles[0];
-
-        if (targetArticle) {
-          let fieldsToUpdate: Record<string, any> = {};
-          let changeDescription = "";
-          let diff: Array<{ field: string; label: string; from: any; to: any }> = [];
-
-          if (isFeaturing) {
-            fieldsToUpdate = { is_featured: true };
-            changeDescription = `Destacar el artículo "${targetArticle.title}" en la portada pública.`;
-            diff = [
-              {
-                field: "is_featured",
-                label: "Destacado",
-                from: Boolean(targetArticle.is_featured),
-                to: true,
-              },
-            ];
-          } else {
-            const newStatus = isPublishing ? "published" : "archived";
-            fieldsToUpdate = { status: newStatus };
-            changeDescription = `Cambiar estado de "${targetArticle.title}" a "${newStatus.toUpperCase()}".`;
-            diff = [
-              { field: "status", label: "Estado", from: targetArticle.status, to: newStatus },
-            ];
-          }
-
-          const payload: ModifyContentPayload = {
-            targetType: "article",
-            targetId: targetArticle.id,
-            targetTitle: targetArticle.title,
-            changeDescription,
-            fieldsToUpdate,
-            previousValues: {
-              status: targetArticle.status,
-              is_featured: Boolean(targetArticle.is_featured),
-            },
-            diff,
-          };
-
-          let executed = false;
-          let executionResult: { success: boolean; id?: string; message: string } | undefined;
-
-          if (immediateExecution) {
-            const exec = await internalModifyContent(payload);
-            executed = exec.success;
-            executionResult = exec;
-          }
-
-          const spokenResponse = immediateExecution
-            ? `Estado de artículo actualizado en la base de datos: "${targetArticle.title}" ahora está ${fieldsToUpdate.status || "modificado"}.`
-            : `He preparado el cambio para el artículo "${targetArticle.title}". Revisa la tarjeta de confirmación y autoriza la actualización.`;
-
-          return {
-            intent: "MODIFY_CONTENT",
-            immediateExecution,
-            userQuery: rawQuery,
-            aiExplanation: `Acción sobre la tabla de artículos: ${changeDescription}`,
-            spokenResponse,
-            payload,
-            executed,
-            executionResult,
-          };
-        }
-      }
-
-      // 3. Deactivate / Activate Announcements & Ticker Alerts
-      if (
-        lower.includes("alerta") ||
-        lower.includes("aviso") ||
-        lower.includes("marquesina") ||
-        lower.includes("ticker")
-      ) {
-        const announcements = db.announcements || [];
-        const isDeactivating =
-          lower.includes("desactiva") || lower.includes("retira") || lower.includes("quita");
-        const targetAnn = announcements.find((a: any) => a.show_in_ticker) || announcements[0];
-
-        if (targetAnn) {
-          const fieldsToUpdate = isDeactivating
-            ? { show_in_ticker: false, status: "archived" }
-            : { show_in_ticker: true, status: "published" };
-
-          const changeDescription = isDeactivating
-            ? `Retirar el aviso "${targetAnn.title}" de la marquesina en vivo.`
-            : `Activar el aviso "${targetAnn.title}" en la marquesina superior.`;
-
-          const payload: ModifyContentPayload = {
-            targetType: "announcement",
-            targetId: targetAnn.id,
-            targetTitle: targetAnn.title,
-            changeDescription,
-            fieldsToUpdate,
-            previousValues: {
-              show_in_ticker: Boolean(targetAnn.show_in_ticker),
-              status: targetAnn.status,
-            },
-            diff: [
-              {
-                field: "show_in_ticker",
-                label: "Marquesina",
-                from: Boolean(targetAnn.show_in_ticker),
-                to: fieldsToUpdate.show_in_ticker,
-              },
-              {
-                field: "status",
-                label: "Estado",
-                from: targetAnn.status,
-                to: fieldsToUpdate.status,
-              },
-            ],
-          };
-
-          let executed = false;
-          let executionResult: { success: boolean; id?: string; message: string } | undefined;
-
-          if (immediateExecution) {
-            const exec = await internalModifyContent(payload);
-            executed = exec.success;
-            executionResult = exec;
-          }
-
-          const spokenResponse = immediateExecution
-            ? `Alerta actualizada en tiempo real: ${changeDescription}`
-            : `He preparado el cambio para ${changeDescription.toLowerCase()}. Confirma en pantalla para aplicar.`;
-
-          return {
-            intent: "MODIFY_CONTENT",
-            immediateExecution,
-            userQuery: rawQuery,
-            aiExplanation: `Acción sobre la marquesina y alertas institucionales: ${changeDescription}`,
-            spokenResponse,
-            payload,
-            executed,
-            executionResult,
-          };
-        }
-      }
-    }
-
-    // =========================================================================
-    // INTENT B: SEARCH EVENTS & SPORTS (REAL BOUND & CALENDAR QUERIES)
-    // =========================================================================
-    const isSearchSportsOrEvents =
-      lower.includes("busca eventos") ||
-      lower.includes("buscar eventos") ||
-      lower.includes("busca partidos") ||
-      lower.includes("buscar partidos") ||
-      lower.includes("partidos de") ||
-      lower.includes("partidos") ||
-      lower.includes("deportes") ||
-      lower.includes("baloncesto") ||
-      lower.includes("basketball") ||
-      lower.includes("fútbol") ||
-      lower.includes("futbol") ||
-      lower.includes("atletismo") ||
-      lower.includes("voleibol") ||
-      lower.includes("volleyball") ||
-      lower.includes("cuándo juega") ||
-      lower.includes("cuando juega") ||
-      lower.includes("calendario de") ||
-      lower.includes("calendario") ||
-      lower.includes("próximos partidos") ||
-      lower.includes("juegos de");
-
-    if (
-      isSearchSportsOrEvents &&
-      !lower.includes("agrega el partido") &&
-      !lower.includes("crea un evento")
-    ) {
-      const allEvents = db.events || [];
-      const allActivities = db.activities || [];
-
-      // Filter events by keyword & school
-      const matchedEvents = allEvents.filter((e: any) => {
-        const titleL = (e.title || "").toLowerCase();
-        const descL = (e.description || "").toLowerCase();
-        const schoolMatch = schoolScope === "all" || !e.school_id || e.school_id === schoolScope;
-
-        const keywordMatch = lower.includes("baloncesto")
-          ? titleL.includes("baloncesto") || descL.includes("baloncesto")
-          : lower.includes("fútbol") || lower.includes("futbol")
-            ? titleL.includes("fútbol") || titleL.includes("soccer")
-            : lower.includes("conferencia")
-              ? titleL.includes("conferencia")
-              : lower.includes("deportes")
-                ? e.event_type === "sports"
-                : true;
-
-        return schoolMatch && keywordMatch;
-      });
-
-      // Filter activities by keyword & school
-      const matchedActivities = allActivities.filter((a: any) => {
-        const nameL = (a.name || "").toLowerCase();
-        const schoolMatch = schoolScope === "all" || !a.school_id || a.school_id === schoolScope;
-
-        const keywordMatch = lower.includes("baloncesto")
-          ? nameL.includes("baloncesto")
-          : lower.includes("fútbol") || lower.includes("futbol")
-            ? nameL.includes("fútbol") || nameL.includes("soccer")
-            : lower.includes("atletismo")
-              ? nameL.includes("atletismo") || nameL.includes("track")
-              : lower.includes("voleibol")
-                ? nameL.includes("voleibol")
-                : true;
-
-        return schoolMatch && keywordMatch;
-      });
-
-      const eventsCount = matchedEvents.length;
-      const activitiesCount = matchedActivities.length;
-
-      let summaryText = `Se encontraron ${eventsCount} eventos programados y ${activitiesCount} deportes en Bound.`;
-      if (eventsCount > 0) {
-        const first = matchedEvents[0];
-        const statusNote = first.is_cancelled ? " (Actualmente CANCELADO)" : "";
-        summaryText = `Próximo evento: "${first.title}" el ${first.start_date} a las ${first.start_time || "18:00"} en ${first.location}${statusNote}.`;
-      }
-
-      const payload: SportsEventsPayload = {
-        query: rawQuery,
-        summary: summaryText,
-        events: matchedEvents.map((e: any) => ({
-          id: e.id,
-          title: e.title,
-          start_date:
-            e.start_date || (e.starts_at ? String(e.starts_at).slice(0, 10) : "Próximamente"),
-          start_time: e.start_time || "18:00",
-          location: e.location || "Sede Escolar DMPS",
-          school_id: e.school_id,
-          event_type: e.event_type || "sports",
-          is_cancelled: Boolean(e.is_cancelled),
-          status: e.is_cancelled ? "cancelled" : e.status || "published",
-        })),
-        activities: matchedActivities.map((a: any) => ({
-          id: a.id,
-          name: a.name,
-          season: a.season || "Invierno",
-          grades: a.grades || "9° a 12°",
-          official_url: a.official_url || "https://www.gobound.com",
-          school_id: a.school_id,
-        })),
-      };
-
-      let spokenResponse = "";
-      if (eventsCount > 0) {
-        const e0 = matchedEvents[0];
-        if (e0.is_cancelled) {
-          spokenResponse = `Atención: El próximo partido ${e0.title} está marcado como cancelado. Hay ${activitiesCount} programas deportivos en Bound.`;
-        } else {
-          spokenResponse = `Encontré el próximo partido: ${e0.title} el ${e0.start_date} a las ${e0.start_time || "6 de la tarde"} en ${e0.location}. Mostrando resultados en pantalla.`;
-        }
-      } else {
-        spokenResponse = `Encontré ${activitiesCount} programas deportivos oficiales en Bound para ${schoolScope === "all" ? "DMPS" : schoolScope.toUpperCase()}.`;
-      }
-
-      return {
-        intent: "SEARCH_SPORTS_EVENTS",
-        immediateExecution: false,
-        userQuery: rawQuery,
-        aiExplanation: `Consulta en vivo al calendario oficial de eventos escolares y la base de datos de actividades deportivas de Bound.`,
-        spokenResponse,
-        payload,
-        executed: true,
-      };
-    }
-
-    // =========================================================================
-    // INTENT C: SEARCH INFORMATION ACROSS ARTICLES, GUIDES, CONTACTS (KNOWLEDGE GROUNDING)
-    // =========================================================================
-    const isSearchInfo =
-      lower.startsWith("busca") ||
-      lower.startsWith("buscar") ||
-      lower.startsWith("dime") ||
-      lower.startsWith("cómo") ||
-      lower.startsWith("como") ||
-      lower.startsWith("dónde") ||
-      lower.startsWith("donde") ||
-      lower.startsWith("qué") ||
-      lower.startsWith("que") ||
-      lower.startsWith("quién") ||
-      lower.startsWith("quien") ||
-      lower.startsWith("cuál") ||
-      lower.startsWith("cual") ||
-      lower.includes("información de") ||
-      lower.includes("informacion de") ||
-      lower.includes("información sobre") ||
-      lower.includes("informacion sobre") ||
-      lower.includes("infinite campus") ||
-      lower.includes("horarios") ||
-      lower.includes("enlace bfl") ||
-      lower.includes("contacto") ||
-      lower.includes("transporte") ||
-      lower.includes("almuerzo") ||
-      lower.includes("comidas") ||
-      lower.includes("calificaciones") ||
-      lower.includes("vacunas") ||
-      lower.includes("inscripciones") ||
-      lower.includes("asistencia");
-
-    if (
-      isSearchInfo &&
-      !lower.includes("crea un") &&
-      !lower.includes("crear un") &&
-      !lower.includes("redacta") &&
-      !lower.includes("agrega el partido") &&
-      !lower.includes("cancela") &&
-      !lower.includes("audita")
-    ) {
-      const articles = db.articles || [];
-      const contacts = db.contacts || [];
-      const categories = db.categories || [];
-
-      // Tokenize search query keywords
-      const queryWords = lower
-        .replace(/[¿?¡!.,;:()]/g, " ")
-        .split(/\s+/)
-        .filter(
-          (w) =>
-            w.length > 2 &&
-            ![
-              "busca",
-              "buscar",
-              "sobre",
-              "para",
-              "como",
-              "dime",
-              "donde",
-              "donde",
-              "cual",
-              "esta",
-              "este",
-            ].includes(w),
-        );
-
-      // Rank articles by keyword matches
-      const rankedArticles = articles
-        .map((art: any) => {
-          const titleL = (art.title || "").toLowerCase();
-          const summaryL = (art.summary || "").toLowerCase();
-          const contentL = typeof art.content === "string" ? art.content.toLowerCase() : "";
-          const slugL = (art.slug || "").toLowerCase();
-
-          let score = 0;
-          for (const word of queryWords) {
-            if (titleL.includes(word)) score += 6;
-            if (slugL.includes(word)) score += 4;
-            if (summaryL.includes(word)) score += 3;
-            if (contentL.includes(word)) score += 1;
-          }
-
-          if (schoolScope !== "all" && art.school_id === schoolScope) {
-            score += 2;
-          }
-
-          // Special direct boosts
-          if (
-            lower.includes("infinite campus") &&
-            (slugL.includes("campus") || titleL.includes("campus"))
-          )
-            score += 20;
-          if (
-            (lower.includes("comida") || lower.includes("almuerzo")) &&
-            (titleL.includes("alimento") ||
-              titleL.includes("comida") ||
-              titleL.includes("nutricion"))
-          )
-            score += 20;
-          if (
-            lower.includes("transporte") &&
-            (titleL.includes("transporte") || titleL.includes("autobus") || titleL.includes("dart"))
-          )
-            score += 20;
-          if (
-            lower.includes("examen") &&
-            (titleL.includes("examen") || titleL.includes("calificac"))
-          )
-            score += 20;
-
-          return { art, score };
-        })
-        .filter((item: any) => item.score > 0)
-        .sort((a: any, b: any) => b.score - a.score)
-        .map((item: any) => item.art);
-
-      const topArticles = rankedArticles.slice(0, 3);
-
-      // Search contacts
-      const matchedContacts = contacts.filter((c: any) => {
-        const nameL = (c.person_name || c.full_name || "").toLowerCase();
-        const roleL = (c.job_title || c.role_title || "").toLowerCase();
-        const languagesL = (c.languages || []).join(" ").toLowerCase();
-        return (
-          queryWords.some((w) => nameL.includes(w) || roleL.includes(w)) ||
-          (lower.includes("bfl") &&
-            (roleL.includes("bfl") ||
-              roleL.includes("enlace") ||
-              languagesL.includes("español"))) ||
-          (lower.includes("contacto") && (roleL.includes("enlace") || roleL.includes("consejer")))
-        );
-      });
-
-      // AI Synthesis with Gemini if GEMINI_API_KEY is available
-      let answerText = "";
-      let spokenResponse = "";
-
-      if (process.env.GEMINI_API_KEY && topArticles.length > 0) {
-        try {
-          const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-          const contextGuides = topArticles
-            .map(
-              (a: any) =>
-                `Título: ${a.title}\nResumen: ${a.summary}\nContenido: ${typeof a.content === "string" ? a.content.slice(0, 500) : ""}`,
-            )
-            .join("\n\n---\n\n");
-          const response = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
-            contents: `Eres el Asistente Inteligente de DMPS Family Connect (portal oficial para familias de Des Moines Public Schools).
-Responde a esta pregunta de forma clara, directa, amable y bilingüe en español:
-"${rawQuery}"
-
-Usa exclusivamente los siguientes artículos oficiales como fuente de verdad:
-${contextGuides}
-
-Devuelve:
-1. Una respuesta concisa de 2 párrafos para la pantalla.
-2. Al final, en una línea que empiece por "VOZ:", un resumen oral de máximo 2 oraciones para decir por los altavoces.`,
-          });
-
-          const textResp = response.text || "";
-          if (textResp.includes("VOZ:")) {
-            const parts = textResp.split("VOZ:");
-            answerText = parts[0]?.trim() || "";
-            spokenResponse = parts[1]?.trim() || "";
-          } else {
-            answerText = textResp.trim();
-            spokenResponse = topArticles[0].summary.slice(0, 160);
-          }
-        } catch (err) {
-          console.warn("[CommandCenter] Gemini synthesis fallback:", err);
-        }
-      }
-
-      // High-accuracy Grounded Fallback
-      if (!answerText) {
-        if (topArticles.length > 0) {
-          const first = topArticles[0];
-          answerText = `Según la guía oficial "${first.title}": ${first.summary}\n\nPuedes consultar el contenido completo y recursos relacionados en la tarjeta a continuación.`;
-          spokenResponse = `Encontré la guía oficial "${first.title}": ${first.summary.slice(0, 150)}. Puedes abrirla en pantalla.`;
-        } else if (lower.includes("infinite campus")) {
-          answerText =
-            "Para entrar a Infinite Campus, visita el portal oficial de familias con tu usuario y contraseña institucional de DMPS o descarga la app Infinite Campus Mobile para monitorear calificaciones, asistencia y horarios.";
-          spokenResponse =
-            "Para acceder a Infinite Campus, usa tu cuenta de DMPS en el portal de familias o descarga la app móvil oficial.";
-        } else {
-          answerText = `He consultado la biblioteca de 29 guías oficiales de DMPS Family Connect para responder a tu consulta. A continuación se presentan las guías y contactos más relevantes.`;
-          spokenResponse = `He buscado en la biblioteca escolar de DMPS y preparé las guías oficiales y contactos directos en pantalla.`;
-        }
-      }
-
-      const payload: SearchInfoPayload = {
-        query: rawQuery,
-        answer: answerText,
-        articles: topArticles.map((a: any) => {
-          const cat = categories.find((c: any) => c.id === a.category_id);
-          return {
-            id: a.id,
-            slug: a.slug,
-            title: a.title,
-            summary:
-              a.summary || "Guía oficial verificada para familias de Des Moines Public Schools.",
-            school_id: a.school_id,
-            category_name: cat?.name || "Recursos Escolares",
-            category_id: a.category_id,
-          };
+        status: cancelled.length > 0 ? "needs_attention" : "optimal",
+        message: `${s.articles.length} artículos, ${s.events.length} eventos (${cancelled.length} cancelados) y ${s.announcements.length} avisos en la base de datos.`,
+        lastAuditAt: new Date().toLocaleTimeString("es-US", {
+          timeZone: "America/Chicago",
+          hour: "2-digit",
+          minute: "2-digit",
         }),
-        contacts: matchedContacts.slice(0, 2).map((c: any) => ({
-          name: c.person_name || c.full_name || "Enlace Escolar BFL",
-          role: c.job_title || c.role_title || "Personal de DMPS",
-          phone: c.phone || "(515) 242-7500",
-          email: c.email || "info@dmschools.org",
-          languages: c.languages || ["Español", "English"],
-        })),
-        resources: [
-          {
-            title: "Portal Oficial DMPS",
-            url: "https://www.dmschools.org",
-            description: "Sitio web del distrito escolar",
-          },
-          {
-            title: "Infinite Campus Familias",
-            url: "https://ia-dmps.infinitecampus.org",
-            description: "Calificaciones y asistencia",
-          },
-        ],
-      };
-
-      return {
-        intent: "SEARCH_INFO",
-        immediateExecution: false,
-        userQuery: rawQuery,
-        aiExplanation: `Búsqueda semántica y extracción de información en la base de datos de guías, directrices y directorio de DMPS.`,
-        spokenResponse,
-        payload,
-        executed: true,
-      };
-    }
-
-    // =========================================================================
-    // INTENT D: CREATE ARTICLE
-    // =========================================================================
-    const isCreateArticle =
-      lower.includes("crea un artículo") ||
-      lower.includes("crear un artículo") ||
-      lower.includes("nuevo artículo") ||
-      lower.includes("redacta un artículo") ||
-      lower.includes("publica un artículo") ||
-      lower.includes("guía sobre") ||
-      lower.includes("sobre los exámenes") ||
-      lower.includes("articulo sobre") ||
-      lower.includes("artículo sobre") ||
-      lower.includes("crea una guía") ||
-      lower.includes("crear una guía");
-
-    if (isCreateArticle) {
-      let title = "Guía Informativa Escolar";
-      if (
-        lower.includes("exámenes finales") ||
-        lower.includes("examenes finales") ||
-        lower.includes("examen")
-      ) {
-        title =
-          schoolScope === "lincoln"
-            ? "Exámenes Finales del Semestre — Guía Lincoln High"
-            : schoolScope === "east"
-              ? "Calendario y Guía de Exámenes Finales — East High"
-              : "Calendario de Exámenes Finales y Evaluación Semestral DMPS";
-      } else if (lower.includes("transporte") || lower.includes("autobuses")) {
-        title = "Guía Oficial de Rutas y Horarios de Transporte Escolar DMPS";
-      } else if (
-        lower.includes("despensa") ||
-        lower.includes("comida") ||
-        lower.includes("alimentos")
-      ) {
-        title = "Despensa Comunitaria y Recursos de Alimentación Familiar DMPS";
-      } else {
-        const match = rawQuery.match(/sobre\s+([^,.]+)/i);
-        if (match && match[1]) {
-          title = match[1].trim().charAt(0).toUpperCase() + match[1].trim().slice(1);
-        }
-      }
-
-      const slug = slugify(title) || `articulo-${Date.now()}`;
-      const isAcademic =
-        lower.includes("académic") || lower.includes("academic") || lower.includes("examen");
-
-      // AI Generation with Gemini if key exists
-      let contentBody = `### Información General y Fechas Clave\n\nEste recurso oficial reúne las fechas, pautas de preparación y soporte estudiantil para las familias de ${schoolScope === "lincoln" ? "Lincoln High" : schoolScope === "east" ? "East High" : "Des Moines Public Schools"}.\n\n* **Sede:** ${schoolScope === "lincoln" ? "Lincoln High School" : schoolScope === "east" ? "East High School" : "Todas las escuelas de DMPS"}\n* **Apoyo BFL:** Asistencia bilingüe en español para resolver dudas familiares.\n* **Portal Familiar:** Consulta calificaciones y estado actualizado en Infinite Campus.\n\nPara asistencia directa, comunícate con la oficina escolar o con tu consejero asignado.`;
-      let summaryText = `Información oficial y fechas clave sobre ${title} para los estudiantes y familias de ${schoolScope === "lincoln" ? "Abraham Lincoln High School" : schoolScope === "east" ? "Des Moines East High School" : "Des Moines Public Schools"}.`;
-
-      if (process.env.GEMINI_API_KEY) {
-        try {
-          const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-          const gen = await ai.models.generateContent({
-            model: "gemini-3.8-flash",
-            contents: `Genera un artículo escolar oficial breve para la web de Des Moines Public Schools sobre: "${title}".
-Alcance: ${schoolScope}.
-Devuelve un JSON con:
-{
-  "summary": "Resumen claro de 2 oraciones para familias",
-  "content": "Cuerpo en formato Markdown con subtítulos y listas"
-}`,
-          });
-          const parsedGen = JSON.parse(gen.text || "{}");
-          if (parsedGen.summary) summaryText = parsedGen.summary;
-          if (parsedGen.content) contentBody = parsedGen.content;
-        } catch (err) {
-          console.warn("[CommandCenter] Gemini article gen fallback:", err);
-        }
-      }
-
-      const payload: ArticleActionPayload = {
-        title,
-        slug,
-        summary: summaryText,
-        content: contentBody,
-        category_id: isAcademic ? "cat_academic" : "cat_programas",
-        category_name: isAcademic ? "Académico y Calificaciones" : "Programas y Oportunidades",
-        school_scope: schoolScope,
-        status: immediateExecution ? "published" : "draft",
-        tags: ["Oficial", "Guía", schoolScope.toUpperCase()],
-      };
-
-      let executed = false;
-      let executionResult: { success: boolean; id?: string; message: string } | undefined;
-
-      if (immediateExecution) {
-        const exec = await internalSaveArticle(payload);
-        executed = exec.success;
-        executionResult = exec;
-      }
-
-      const spokenResponse = immediateExecution
-        ? `Artículo publicado de inmediato en la base de datos oficial: ${title}. Ya está activo en el portal.`
-        : `He estructurado la propuesta para el artículo: "${title}". Revisa los datos en la tarjeta y confirma para publicarlo.`;
-
-      return {
-        intent: "CREATE_ARTICLE",
-        immediateExecution,
-        userQuery: rawQuery,
-        aiExplanation: `He estructurado el artículo con título oficial, resumen bilingüe, cuerpo en Markdown y categoría "${payload.category_name}".`,
-        spokenResponse,
-        payload,
-        executed,
-        executionResult,
-      };
-    }
-
-    // =========================================================================
-    // INTENT E: CREATE EVENT / MATCH
-    // =========================================================================
-    const isCreateEvent =
-      lower.includes("agrega el partido") ||
-      lower.includes("crea un evento") ||
-      lower.includes("crear un evento") ||
-      lower.includes("programa un partido") ||
-      lower.includes("partido de baloncesto este") ||
-      lower.includes("agrega evento");
-
-    if (isCreateEvent) {
-      let title = "Evento Deportivo DMPS";
-      const isSports =
-        lower.includes("baloncesto") ||
-        lower.includes("partido") ||
-        lower.includes("futbol") ||
-        lower.includes("fútbol") ||
-        lower.includes("voleibol") ||
-        lower.includes("atletismo");
-
-      if (lower.includes("baloncesto") || lower.includes("basketball")) {
-        const gender = lower.includes("femenino") ? "Femenino" : "Masculino";
-        title = `Partido de Baloncesto ${gender}: ${
-          schoolScope === "east"
-            ? "East High vs Hoover"
-            : schoolScope === "lincoln"
-              ? "Lincoln High vs Roosevelt"
-              : "DMPS Clásico Inter-Escolar"
-        }`;
-      } else {
-        const match = rawQuery.match(/(?:evento|partido|reunión)\s+(?:de\s+)?([^,.]+)/i);
-        if (match && match[1]) {
-          title = `Evento: ${match[1].trim().charAt(0).toUpperCase() + match[1].trim().slice(1)}`;
-        }
-      }
-
-      const { date, time } = calculateTargetDate(rawQuery);
-      let location = "Gimnasio Principal";
-      if (lower.includes("gimnasio")) {
-        location =
-          lower.includes("este") || schoolScope === "east"
-            ? "Gimnasio Principal de East High"
-            : "Gimnasio Principal de Lincoln High";
-      } else if (lower.includes("estadio")) {
-        location = "Mediacom Stadium";
-      } else if (lower.includes("auditorio")) {
-        location = "Auditorio Escolar";
-      }
-
-      const payload: EventActionPayload = {
-        title,
-        description: `Encuentro y evento oficial abierto a estudiantes, familias y simpatizantes de ${
-          schoolScope === "east"
-            ? "East High Scarlets"
-            : schoolScope === "lincoln"
-              ? "Lincoln High Railsplitters"
-              : "Des Moines Public Schools"
-        }. Entrada libre con credencial de estudiante o pase deportivo.`,
-        start_date: date,
-        start_time: time,
-        location,
-        event_type: isSports ? "sports" : "general",
-        school_scope: schoolScope,
-      };
-
-      let executed = false;
-      let executionResult: { success: boolean; id?: string; message: string } | undefined;
-
-      if (immediateExecution) {
-        const exec = await internalSaveEvent(payload);
-        executed = exec.success;
-        executionResult = exec;
-      }
-
-      const spokenResponse = immediateExecution
-        ? `Partido agregado de inmediato al calendario oficial: ${title} para este ${date} a las ${time} en ${location}.`
-        : `He programado el evento: "${title}" para el ${date} a las ${time} en ${location}. Verifica la tarjeta y confirma para guardar.`;
-
-      return {
-        intent: "CREATE_EVENT",
-        immediateExecution,
-        userQuery: rawQuery,
-        aiExplanation: `Se detectaron parámetros de calendario: fecha (${date}), hora (${time}) y sede (${location}) para almacenar en la base de datos oficial.`,
-        spokenResponse,
-        payload,
-        executed,
-        executionResult,
-      };
-    }
-
-    // =========================================================================
-    // INTENT F: CREATE URGENT ANNOUNCEMENT
-    // =========================================================================
-    const isCreateAnnouncement =
-      lower.includes("publica una alerta") ||
-      lower.includes("alerta distrital") ||
-      lower.includes("aviso urgente") ||
-      lower.includes("retraso de") ||
-      lower.includes("alerta de") ||
-      lower.includes("alerta por clima");
-
-    if (isCreateAnnouncement) {
-      let title = "Aviso Oficial de Transporte y Clima";
-      const level: "info" | "warning" | "urgent" = "urgent";
-
-      if (
-        lower.includes("retraso de 2 horas") ||
-        lower.includes("retraso de dos horas") ||
-        lower.includes("clima")
-      ) {
-        title = "Alerta Distrital: Retraso de 2 Horas en Transporte por Clima Severo";
-      } else if (lower.includes("urgente") || lower.includes("alerta")) {
-        title = "Aviso Urgente a Familias de DMPS";
-      } else {
-        title = "Comunicado Institucional a la Comunidad Escolar";
-      }
-
-      const message =
-        lower.includes("retraso") || lower.includes("clima")
-          ? "Debido a las condiciones climáticas en Des Moines, todos los autobuses escolares y clases operarán con un retraso de 2 horas. Las puertas de las escuelas abrirán según el horario de emergencia. Por favor conduzcan con precaución."
-          : `Comunicado oficial para todas las familias y estudiantes: por favor consulte las actualizaciones más recientes a través de los canales de comunicación de DMPS.`;
-
-      const payload: AnnouncementActionPayload = {
-        title,
-        message,
-        level,
-        priority: "high",
-        school_scope: schoolScope,
-        show_in_ticker: true,
-        show_on_home: true,
-      };
-
-      let executed = false;
-      let executionResult: { success: boolean; id?: string; message: string } | undefined;
-
-      if (immediateExecution) {
-        const exec = await internalSaveAnnouncement(payload);
-        executed = exec.success;
-        executionResult = exec;
-      }
-
-      const spokenResponse = immediateExecution
-        ? `Alerta distrital publicada de inmediato en la marquesina superior y página principal: ${title}.`
-        : `He preparado la alerta urgente: "${title}". Al ser una notificación en marquesina, requiere tu confirmación para publicarse.`;
-
-      return {
-        intent: "CREATE_ANNOUNCEMENT",
-        immediateExecution,
-        userQuery: rawQuery,
-        aiExplanation: `Se ha configurado una alerta con nivel "URGENTE" activando la marquesina superior (ticker) y visibilidad en portada.`,
-        spokenResponse,
-        payload,
-        executed,
-        executionResult,
-      };
-    }
-
-    // =========================================================================
-    // INTENT G: AUDIT SITE
-    // =========================================================================
-    if (
-      lower.includes("audita") ||
-      lower.includes("auditoría") ||
-      lower.includes("auditoria") ||
-      lower.includes("qué contenido falta") ||
-      lower.includes("eventos ya vencieron") ||
-      lower.includes("revisar la web") ||
-      lower.includes("estado del portal")
-    ) {
-      const overview = await getCommandCenterOverview();
-
-      const findings: AuditSitePayload["findings"] = [
-        {
-          type: "warning",
-          title: `${Math.max(0, overview.events.total - overview.events.upcoming)} Eventos anteriores requieren archivo`,
-          description:
-            "Existen partidos y reuniones de fechas pasadas que aún no han sido marcados como archivados.",
-        },
-        {
-          type: "info",
-          title: `${overview.articles.drafts} Artículos en estado de borrador`,
-          description:
-            "Hay borradores pendientes de revisión y aprobación editorial antes de ser visibles para las familias.",
-        },
-        {
-          type: "success",
-          title: "Marquesina de avisos activa y al día",
-          description: `${overview.announcements.tickerCount} avisos transmitiéndose en tiempo real en la cabecera pública.`,
-        },
-        {
-          type: "info",
-          title: "Cobertura de Escuelas Equilibrada",
-          description: `Lincoln High cuenta con ${overview.articles.lincoln} guías activas y East High con ${overview.articles.east}.`,
-        },
-      ];
-
-      const recommendations = [
-        "Archivar eventos deportivos de fechas anteriores.",
-        "Revisar y publicar los borradores de exámenes finales de Lincoln High.",
-        "Comprobar las rutas de invierno de DART y autobuses amarillos.",
-        "Verificar números telefónicos de los enlaces bilingües BFL.",
-      ];
-
-      const payload: AuditSitePayload = {
-        summary:
-          "Auditoría integral completada: La plataforma cuenta con alta integridad, 29 artículos oficiales y eventos sincronizados.",
-        totalArticles: overview.articles.total,
-        draftArticles: overview.articles.drafts,
-        publishedArticles: overview.articles.published,
-        totalEvents: overview.events.total,
-        upcomingEvents: overview.events.upcoming,
-        expiredEvents: Math.max(0, overview.events.total - overview.events.upcoming),
-        activeAnnouncements: overview.announcements.active,
-        urgentAlerts: overview.announcements.urgent,
-        findings,
-        recommendations,
-      };
-
-      const spokenResponse = `Auditoría completada. Tienes ${payload.totalArticles} artículos oficiales, ${payload.upcomingEvents} eventos próximos y ${payload.activeAnnouncements} avisos activos. Todo el sistema está sincronizado.`;
-
-      return {
-        intent: "AUDIT_SITE",
-        immediateExecution: false,
-        userQuery: rawQuery,
-        aiExplanation: `Análisis en vivo de la base de datos de artículos, eventos y avisos de DMPS.`,
-        spokenResponse,
-        payload,
-        executed: true,
-      };
-    }
-
-    // =========================================================================
-    // INTENT H: DEFAULT ASSISTANT (HELP & EXPLANATION)
-    // =========================================================================
-    const spokenResponse = `Estoy lista para asistirte. Puedes pedirme: "Busca cómo entrar a Infinite Campus", "Cuáles son los partidos de baloncesto", "Crea un artículo de exámenes", o "Cancela el partido del viernes".`;
-
-    return {
-      intent: "GENERAL_INFO",
-      immediateExecution: false,
-      userQuery: rawQuery,
-      aiExplanation: `El motor inteligente de voz está activo. Puedo buscar información en las 29 guías de DMPS, consultar partidos de Bound, crear artículos y ejecutar cambios reales en la base de datos.`,
-      spokenResponse,
-      payload: null,
-      executed: false,
+      },
     };
   });
 
-/**
- * 3. Execute Action Server Function: Real database writing & modification
- */
+export const processCommandIntent = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ query: z.string().min(1).max(1000), schoolScope: z.string().optional() }).parse(d),
+  )
+  .handler(async ({ data, context }): Promise<CommandParsedResult> => {
+    const supabase = context.supabase as Db;
+    await assertContentManager(supabase);
+    const query = data.query.trim();
+    const s = await loadSnapshot(supabase);
+
+    let raw: any;
+    try {
+      raw = await askGemini(
+        SYSTEM_PROMPT,
+        `Fecha y hora actual (Des Moines, Iowa): ${chicagoNow()} — ISO ${new Date().toISOString()}\n\nORDEN DEL ADMINISTRADOR:\n${query}\n\nINSTANTÁNEA DE LA BASE DE DATOS:\n${JSON.stringify(compactContext(s, data.schoolScope))}`,
+      );
+    } catch (err) {
+      const msg = (err as Error).message;
+      return {
+        intent: "GENERAL_INFO",
+        immediateExecution: false,
+        userQuery: query,
+        aiExplanation: msg,
+        spokenResponse: "No pude procesar la orden en este momento.",
+        payload: null,
+        executed: false,
+      };
+    }
+
+    const result = buildResult(raw, s, query, data.schoolScope);
+
+    const executable = ["CREATE_ARTICLE", "CREATE_EVENT", "CREATE_ANNOUNCEMENT", "MODIFY_CONTENT"];
+    if (result.immediateExecution && executable.includes(result.intent) && result.payload) {
+      try {
+        const exec = await runAction(supabase, result.intent, result.payload);
+        result.executed = exec.success;
+        result.executionResult = exec;
+      } catch (err) {
+        result.executionResult = { success: false, message: (err as Error).message };
+      }
+    }
+    return result;
+  });
+
 export const executeCommandAction = createServerFn({ method: "POST" })
-  .validator((d: unknown) =>
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
     z
       .object({
         intent: z.enum(["CREATE_ARTICLE", "CREATE_EVENT", "CREATE_ANNOUNCEMENT", "MODIFY_CONTENT"]),
@@ -1560,296 +750,136 @@ export const executeCommandAction = createServerFn({ method: "POST" })
       })
       .parse(d),
   )
-  .handler(async ({ data }) => {
-    const { intent, payload } = data;
-
-    if (intent === "CREATE_ARTICLE") {
-      const res = await internalSaveArticle(payload);
-      return {
-        ...res,
-        spokenResponse: `¡Confirmado! El artículo "${payload.title}" ha sido guardado exitosamente en la base de datos oficial.`,
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as Db;
+    await assertContentManager(supabase);
+    try {
+      const res = await runAction(supabase, data.intent, data.payload);
+      const title = data.payload?.title ?? data.payload?.targetTitle ?? "";
+      const spoken: Record<string, string> = {
+        CREATE_ARTICLE: `Listo. El artículo "${title}" quedó guardado.`,
+        CREATE_EVENT: `Listo. El evento "${title}" ya está en el calendario.`,
+        CREATE_ANNOUNCEMENT: `Listo. El aviso "${title}" está activo.`,
+        MODIFY_CONTENT: `Listo. Se actualizó "${title}".`,
       };
+      return { ...res, spokenResponse: res.success ? spoken[data.intent] : res.message };
+    } catch (err) {
+      const message = (err as Error).message;
+      return { success: false, message, spokenResponse: "No se pudo guardar el cambio." };
     }
-
-    if (intent === "CREATE_EVENT") {
-      const res = await internalSaveEvent(payload);
-      return {
-        ...res,
-        spokenResponse: `¡Confirmado! El evento "${payload.title}" ha sido programado en el calendario oficial de DMPS.`,
-      };
-    }
-
-    if (intent === "CREATE_ANNOUNCEMENT") {
-      const res = await internalSaveAnnouncement(payload);
-      return {
-        ...res,
-        spokenResponse: `¡Confirmado! La alerta "${payload.title}" ha sido emitida y está activa en la marquesina superior.`,
-      };
-    }
-
-    if (intent === "MODIFY_CONTENT") {
-      const res = await internalModifyContent(payload);
-      return {
-        ...res,
-        spokenResponse: `¡Cambio aplicado con éxito! Se actualizó "${payload.targetTitle}" en la base de datos.`,
-      };
-    }
-
-    return {
-      success: false,
-      message: "Acción no reconocida.",
-      spokenResponse: "No se pudo reconocer la acción solicitada.",
-    };
   });
 
-// =============================================================================
-// INTERNAL DATABASE READ & WRITE METHODS (PERSISTENCE GUARANTEE)
-// =============================================================================
+// ---------------------------------------------------------------------------
+// Real database writes (RLS applies as the signed-in admin)
+// ---------------------------------------------------------------------------
 
-async function internalSaveArticle(payload: ArticleActionPayload) {
-  const articleId = `art_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const db = loadDatabase();
+async function runAction(
+  supabase: Db,
+  intent: string,
+  payload: any,
+): Promise<{ success: boolean; id?: string; message: string }> {
+  const now = new Date().toISOString();
 
-  const newArticle = {
-    id: articleId,
-    slug: payload.slug || slugify(payload.title),
-    title: payload.title,
-    summary: payload.summary,
-    content: payload.content,
-    category_id: payload.category_id || "cat_academic",
-    category_ids: [payload.category_id || "cat_academic"],
-    school_id: payload.school_scope === "all" ? null : payload.school_scope,
-    status: payload.status || "published",
-    published_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-    is_featured: false,
-    view_count: 0,
-  };
-
-  db.articles = [newArticle, ...(db.articles || [])];
-
-  // Also add Spanish translation
-  if (!db.article_translations) db.article_translations = [];
-  db.article_translations.unshift({
-    id: `tr_${articleId}_es`,
-    article_id: articleId,
-    language_code: "es",
-    title: payload.title,
-    summary: payload.summary,
-    content_blocks: [
-      { type: "heading", text: payload.title },
-      { type: "paragraph", text: payload.summary },
-      { type: "paragraph", text: payload.content },
-    ],
-    updated_at: new Date().toISOString(),
-  });
-
-  saveDatabase(db);
-
-  // Sync with Supabase if configured
-  try {
-    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      await supabaseAdmin.from("articles").insert({
-        id: articleId,
-        slug: newArticle.slug,
-        title: newArticle.title,
-        summary: newArticle.summary,
-        content: newArticle.content,
-        category_ids: newArticle.category_ids,
-        school_id: newArticle.school_id,
-        status: newArticle.status,
-        published_at: newArticle.published_at,
-      });
-    }
-  } catch (err) {
-    console.warn("[CommandCenter] Supabase article write warning:", err);
+  if (intent === "CREATE_ARTICLE") {
+    const p = payload as ArticleActionPayload;
+    const id = newId("art");
+    const html = p.content || `<p>${p.summary}</p>`;
+    const blocks = [{ type: "paragraph", text: html }];
+    const { error } = await supabase.from("articles").insert({
+      id,
+      slug: `${p.slug || slugify(p.title)}-${id.slice(-5)}`,
+      title: p.title,
+      summary: p.summary,
+      content: JSON.stringify({ blocks }),
+      category_id: p.category_id || null,
+      category_ids: p.category_id ? [p.category_id] : [],
+      school_id: scopeToSchool(p.school_scope),
+      status: p.status === "published" ? "published" : "draft",
+      published_at: p.status === "published" ? now : null,
+    });
+    if (error) throw new Error(`No se pudo guardar el artículo: ${error.message}`);
+    await supabase.from("article_translations").insert({
+      id: `${id}_es`,
+      article_id: id,
+      language_code: "es",
+      title: p.title,
+      summary: p.summary,
+      content_blocks: blocks,
+    });
+    return { success: true, id, message: `Artículo "${p.title}" guardado (${p.status === "published" ? "publicado" : "borrador"}).` };
   }
 
-  executedActionsLog.unshift({
-    id: articleId,
-    intent: "CREATE_ARTICLE",
-    title: payload.title,
-    executedAt: new Date().toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" }),
-    details: `Categoría: ${payload.category_name} | Escuela: ${payload.school_scope} | ID: ${articleId}`,
-  });
-
-  return {
-    success: true,
-    id: articleId,
-    message: `Artículo "${payload.title}" guardado con ID ${articleId} y persistido en la base de datos.`,
-  };
-}
-
-async function internalSaveEvent(payload: EventActionPayload) {
-  const eventId = `ev_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const db = loadDatabase();
-
-  const newEvent = {
-    id: eventId,
-    title: payload.title,
-    description: payload.description,
-    start_date: payload.start_date,
-    start_time: payload.start_time,
-    starts_at: `${payload.start_date}T${payload.start_time || "18:00"}:00Z`,
-    location: payload.location,
-    event_type: payload.event_type || "sports",
-    school_id: payload.school_scope === "all" ? null : payload.school_scope,
-    status: "published",
-    is_featured: true,
-    all_day: Boolean(payload.all_day),
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  db.events = [newEvent, ...(db.events || [])];
-  saveDatabase(db);
-
-  try {
-    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      await supabaseAdmin.from("events").insert({
-        id: eventId,
-        title: newEvent.title,
-        description: newEvent.description,
-        starts_at: newEvent.starts_at,
-        location: newEvent.location,
-        event_type: newEvent.event_type,
-        school_id: newEvent.school_id,
-        status: "published",
-      });
-    }
-  } catch (err) {
-    console.warn("[CommandCenter] Supabase event write warning:", err);
+  if (intent === "CREATE_EVENT") {
+    const p = payload as EventActionPayload;
+    const id = newId("ev");
+    const time = /^\d{2}:\d{2}$/.test(p.start_time) ? p.start_time : "18:00";
+    const { error } = await supabase.from("events").insert({
+      id,
+      title: p.title,
+      description: p.description,
+      starts_at: `${p.start_date}T${time}:00-05:00`,
+      start_time: time,
+      location: p.location,
+      event_type: p.event_type,
+      school_id: scopeToSchool(p.school_scope),
+      all_day: Boolean(p.all_day),
+      status: "published",
+      is_featured: p.event_type === "sports",
+    });
+    if (error) throw new Error(`No se pudo guardar el evento: ${error.message}`);
+    return { success: true, id, message: `Evento "${p.title}" programado para ${p.start_date} ${time}.` };
   }
 
-  executedActionsLog.unshift({
-    id: eventId,
-    intent: "CREATE_EVENT",
-    title: payload.title,
-    executedAt: new Date().toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" }),
-    details: `Fecha: ${payload.start_date} ${payload.start_time} | Ubicación: ${payload.location}`,
-  });
-
-  return {
-    success: true,
-    id: eventId,
-    message: `Evento deportivo "${payload.title}" guardado en la base de datos oficial.`,
-  };
-}
-
-async function internalSaveAnnouncement(payload: AnnouncementActionPayload) {
-  const annId = `ann_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const db = loadDatabase();
-
-  const newAnn = {
-    id: annId,
-    title: payload.title,
-    message: payload.message,
-    level: payload.level || "urgent",
-    priority: payload.priority || "high",
-    school_id: payload.school_scope === "all" ? null : payload.school_scope,
-    status: "published",
-    show_in_ticker: payload.show_in_ticker ?? true,
-    show_on_home: payload.show_on_home ?? true,
-    published_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-  };
-
-  db.announcements = [newAnn, ...(db.announcements || [])];
-  saveDatabase(db);
-
-  try {
-    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      await supabaseAdmin.from("announcements").insert({
-        id: annId,
-        level: newAnn.level,
-        priority: newAnn.priority,
-        school_id: newAnn.school_id,
-        status: newAnn.status,
-        show_in_ticker: newAnn.show_in_ticker,
-        show_on_home: newAnn.show_on_home,
-        published_at: newAnn.published_at,
-      });
-    }
-  } catch (err) {
-    console.warn("[CommandCenter] Supabase announcement write warning:", err);
+  if (intent === "CREATE_ANNOUNCEMENT") {
+    const p = payload as AnnouncementActionPayload;
+    const id = newId("ann");
+    const { error } = await supabase.from("announcements").insert({
+      id,
+      level: p.level,
+      priority: p.priority,
+      school_id: scopeToSchool(p.school_scope),
+      status: "published",
+      show_in_ticker: p.show_in_ticker,
+      show_on_home: p.show_on_home,
+      published_at: now,
+      expires_at: p.expires_at ?? null,
+    });
+    if (error) throw new Error(`No se pudo guardar el aviso: ${error.message}`);
+    const { error: trErr } = await supabase.from("announcement_translations").insert({
+      id: `${id}_es`,
+      announcement_id: id,
+      language_code: "es",
+      title: p.title,
+      message: p.message,
+    });
+    if (trErr) throw new Error(`El aviso se creó pero sin texto: ${trErr.message}`);
+    return { success: true, id, message: `Aviso "${p.title}" activado.` };
   }
 
-  executedActionsLog.unshift({
-    id: annId,
-    intent: "CREATE_ANNOUNCEMENT",
-    title: payload.title,
-    executedAt: new Date().toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" }),
-    details: `Nivel: ${payload.level.toUpperCase()} | Marquesina: Activa`,
-  });
+  if (intent === "MODIFY_CONTENT") {
+    const p = payload as ModifyContentPayload;
+    const allowed = ALLOWED_FIELDS[p.targetType] ?? [];
+    const update: Record<string, any> = {};
+    for (const [k, v] of Object.entries(p.fieldsToUpdate ?? {})) if (allowed.includes(k)) update[k] = v;
+    if (!Object.keys(update).length) return { success: false, message: "No hay cambios válidos para aplicar." };
 
-  return {
-    success: true,
-    id: annId,
-    message: `Alerta "${payload.title}" activada en la base de datos y marquesina de DMPS.`,
-  };
-}
+    const table = p.targetType === "event" ? "events" : p.targetType === "article" ? "articles" : "announcements";
+    if (p.targetType === "event" && (update.start_date || update.start_time)) {
+      const { data: cur } = await supabase.from("events").select("starts_at, start_time").eq("id", p.targetId).maybeSingle();
+      const date = update.start_date ?? String(cur?.starts_at ?? "").slice(0, 10);
+      const time = update.start_time ?? cur?.start_time ?? "18:00";
+      update.starts_at = `${date}T${time}:00-05:00`;
+      update.start_time = time;
+      delete update.start_date;
+    }
+    if (p.targetType === "article" && update.status === "published") update.published_at = new Date().toISOString();
+    update.updated_at = new Date().toISOString();
 
-async function internalModifyContent(payload: ModifyContentPayload) {
-  const db = loadDatabase();
-  let modified = false;
-
-  if (payload.targetType === "event") {
-    if (db.events) {
-      const idx = db.events.findIndex((e: any) => e.id === payload.targetId);
-      if (idx >= 0) {
-        db.events[idx] = {
-          ...db.events[idx],
-          ...payload.fieldsToUpdate,
-          updated_at: new Date().toISOString(),
-        };
-        modified = true;
-      }
-    }
-  } else if (payload.targetType === "article") {
-    if (db.articles) {
-      const idx = db.articles.findIndex((a: any) => a.id === payload.targetId);
-      if (idx >= 0) {
-        db.articles[idx] = {
-          ...db.articles[idx],
-          ...payload.fieldsToUpdate,
-          updated_at: new Date().toISOString(),
-        };
-        modified = true;
-      }
-    }
-  } else if (payload.targetType === "announcement") {
-    if (db.announcements) {
-      const idx = db.announcements.findIndex((a: any) => a.id === payload.targetId);
-      if (idx >= 0) {
-        db.announcements[idx] = {
-          ...db.announcements[idx],
-          ...payload.fieldsToUpdate,
-          updated_at: new Date().toISOString(),
-        };
-        modified = true;
-      }
-    }
+    const { data: rows, error } = await supabase.from(table).update(update).eq("id", p.targetId).select("id");
+    if (error) throw new Error(`No se pudo aplicar el cambio: ${error.message}`);
+    if (!rows?.length) return { success: false, message: "No se encontró el registro o no tienes permiso para cambiarlo." };
+    return { success: true, id: p.targetId, message: `Cambio aplicado: ${p.changeDescription}` };
   }
 
-  if (modified) {
-    saveDatabase(db);
-  }
-
-  executedActionsLog.unshift({
-    id: payload.targetId,
-    intent: "MODIFY_CONTENT",
-    title: payload.targetTitle,
-    executedAt: new Date().toLocaleTimeString("es-US", { hour: "2-digit", minute: "2-digit" }),
-    details: payload.changeDescription,
-  });
-
-  return {
-    success: true,
-    id: payload.targetId,
-    message: `Modificación aplicada: ${payload.changeDescription}`,
-  };
+  return { success: false, message: "Acción no reconocida." };
 }
