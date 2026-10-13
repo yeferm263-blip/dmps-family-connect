@@ -52,6 +52,7 @@ import { Route as AdminAyudaFamiliasRouteImport } from './routes/admin.ayuda-fam
 import { Route as AdminCalendarioRouteImport } from './routes/admin.calendario'
 import { Route as AdminCalidadRouteImport } from './routes/admin.calidad'
 import { Route as AdminCategoriasRouteImport } from './routes/admin.categorias'
+import { Route as AdminComandoRouteImport } from './routes/admin.comando'
 import { Route as AdminContactosRouteImport } from './routes/admin.contactos'
 import { Route as AdminCreadorIaRouteImport } from './routes/admin.creador-ia'
 import { Route as AdminDeportesActividadesRouteImport } from './routes/admin.deportes-actividades'
@@ -316,6 +317,11 @@ const AdminCalidadRoute = AdminCalidadRouteImport.update({
 const AdminCategoriasRoute = AdminCategoriasRouteImport.update({
   id: '/categorias',
   path: '/categorias',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminComandoRoute = AdminComandoRouteImport.update({
+  id: '/comando',
+  path: '/comando',
   getParentRoute: () => AdminRoute,
 } as any)
 const AdminContactosRoute = AdminContactosRouteImport.update({
@@ -606,6 +612,7 @@ export interface FileRoutesByFullPath {
   '/admin/calendario': typeof AdminCalendarioRoute
   '/admin/calidad': typeof AdminCalidadRoute
   '/admin/categorias': typeof AdminCategoriasRoute
+  '/admin/comando': typeof AdminComandoRoute
   '/admin/contactos': typeof AdminContactosRoute
   '/admin/creador-ia': typeof AdminCreadorIaRoute
   '/admin/deportes-actividades': typeof AdminDeportesActividadesRoute
@@ -697,6 +704,7 @@ export interface FileRoutesByTo {
   '/admin/calendario': typeof AdminCalendarioRoute
   '/admin/calidad': typeof AdminCalidadRoute
   '/admin/categorias': typeof AdminCategoriasRoute
+  '/admin/comando': typeof AdminComandoRoute
   '/admin/contactos': typeof AdminContactosRoute
   '/admin/creador-ia': typeof AdminCreadorIaRoute
   '/admin/deportes-actividades': typeof AdminDeportesActividadesRoute
@@ -791,6 +799,7 @@ export interface FileRoutesById {
   '/admin/calendario': typeof AdminCalendarioRoute
   '/admin/calidad': typeof AdminCalidadRoute
   '/admin/categorias': typeof AdminCategoriasRoute
+  '/admin/comando': typeof AdminComandoRoute
   '/admin/contactos': typeof AdminContactosRoute
   '/admin/creador-ia': typeof AdminCreadorIaRoute
   '/admin/deportes-actividades': typeof AdminDeportesActividadesRoute
@@ -886,6 +895,7 @@ export interface FileRouteTypes {
     | '/admin/calendario'
     | '/admin/calidad'
     | '/admin/categorias'
+    | '/admin/comando'
     | '/admin/contactos'
     | '/admin/creador-ia'
     | '/admin/deportes-actividades'
@@ -977,6 +987,7 @@ export interface FileRouteTypes {
     | '/admin/calendario'
     | '/admin/calidad'
     | '/admin/categorias'
+    | '/admin/comando'
     | '/admin/contactos'
     | '/admin/creador-ia'
     | '/admin/deportes-actividades'
@@ -1070,6 +1081,7 @@ export interface FileRouteTypes {
     | '/admin/calendario'
     | '/admin/calidad'
     | '/admin/categorias'
+    | '/admin/comando'
     | '/admin/contactos'
     | '/admin/creador-ia'
     | '/admin/deportes-actividades'
@@ -1482,6 +1494,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminCategoriasRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/comando': {
+      id: '/admin/comando'
+      path: '/comando'
+      fullPath: '/admin/comando'
+      preLoaderRoute: typeof AdminComandoRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/contactos': {
       id: '/admin/contactos'
       path: '/contactos'
@@ -1831,6 +1850,7 @@ interface AdminRouteChildren {
   AdminCalendarioRoute: typeof AdminCalendarioRoute
   AdminCalidadRoute: typeof AdminCalidadRoute
   AdminCategoriasRoute: typeof AdminCategoriasRoute
+  AdminComandoRoute: typeof AdminComandoRoute
   AdminContactosRoute: typeof AdminContactosRoute
   AdminCreadorIaRoute: typeof AdminCreadorIaRoute
   AdminDeportesActividadesRoute: typeof AdminDeportesActividadesRoute
@@ -1868,6 +1888,7 @@ const AdminRouteChildren: AdminRouteChildren = {
   AdminCalendarioRoute: AdminCalendarioRoute,
   AdminCalidadRoute: AdminCalidadRoute,
   AdminCategoriasRoute: AdminCategoriasRoute,
+  AdminComandoRoute: AdminComandoRoute,
   AdminContactosRoute: AdminContactosRoute,
   AdminCreadorIaRoute: AdminCreadorIaRoute,
   AdminDeportesActividadesRoute: AdminDeportesActividadesRoute,
