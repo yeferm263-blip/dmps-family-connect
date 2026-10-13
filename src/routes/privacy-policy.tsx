@@ -214,6 +214,21 @@ function PrivacyPolicyPage() {
               personal information and refusing targeted cross-site ad tracking.
             </p>
           </section>
+          <section className="space-y-3">
+            <h2 className="text-xl font-bold text-foreground">7. Advertising (Google AdSense)</h2>
+            <p className="text-sm sm:text-base leading-relaxed text-foreground/90">
+              This site may display ads served by Google AdSense. Third-party vendors, including
+              Google, use cookies to serve ads based on a user&apos;s prior visits to this website or
+              other websites. Google&apos;s use of advertising cookies enables it and its partners to
+              serve ads based on visits to this and other sites. You may opt out of personalized
+              advertising by visiting{" "}
+              <a className="text-primary underline" href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">Google Ads Settings</a>{" "}
+              or{" "}
+              <a className="text-primary underline" href="https://www.aboutads.info" target="_blank" rel="noopener noreferrer">www.aboutads.info</a>.
+              Learn more at{" "}
+              <a className="text-primary underline" href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">How Google uses data</a>.
+            </p>
+          </section>
         </article>
       ) : (
         <article className="space-y-8">
@@ -388,8 +403,23 @@ function PrivacyPolicyPage() {
               estudiantes. No recopilamos intencionadamente datos de contacto de menores de 13 años.
               Adoptamos voluntariamente los principios de minimización de datos reconocidos en la ley
               COPPA y en la Ley de Protección de Datos del Consumidor de Iowa (Iowa Code Cap. 715D),
-              garantizando que ningún dato se comercialice con terceros ni se destine a redes de
-              publicidad programática.
+              garantizando que ningún dato se comercialice con terceros ni se venda a corredores de
+              datos. Los anuncios de Google, si están activos, se rigen por la sección 7.
+            </p>
+          </section>
+          <section className="space-y-3">
+            <h2 className="text-xl font-bold text-foreground">7. Publicidad (Google AdSense)</h2>
+            <p className="text-sm sm:text-base leading-relaxed text-foreground/90">
+              Este sitio puede mostrar anuncios de Google AdSense. Proveedores externos, incluido
+              Google, utilizan cookies para mostrar anuncios basados en las visitas anteriores del
+              usuario a este u otros sitios web. Las cookies de publicidad permiten a Google y a sus
+              socios mostrar anuncios según dichas visitas. Puede inhabilitar la publicidad
+              personalizada en la{" "}
+              <a className="text-primary underline" href="https://adssettings.google.com" target="_blank" rel="noopener noreferrer">Configuración de anuncios de Google</a>{" "}
+              o en{" "}
+              <a className="text-primary underline" href="https://www.aboutads.info" target="_blank" rel="noopener noreferrer">www.aboutads.info</a>.
+              Más información en{" "}
+              <a className="text-primary underline" href="https://policies.google.com/technologies/ads" target="_blank" rel="noopener noreferrer">Cómo usa Google los datos</a>.
             </p>
           </section>
         </article>
