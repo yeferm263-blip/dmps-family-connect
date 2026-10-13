@@ -18,9 +18,9 @@ export const Route = createFileRoute("/privacy-policy")({
         content: "Transparencia técnica y privacidad para familias escolares de Des Moines.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://familiasdmps.app/privacy-policy" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/privacy-policy" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/privacy-policy" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/privacy-policy" }],
   }),
   component: PrivacyPolicyPage,
 });

@@ -62,9 +62,9 @@ export const Route = createFileRoute("/lincoln")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:url", content: "https://familiasdmps.app/lincoln" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/lincoln" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/lincoln" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/lincoln" }],
   }),
   component: LincolnPage,
 });

@@ -18,9 +18,9 @@ export const Route = createFileRoute("/cookie-policy")({
         content: "Transparencia sobre el almacenamiento en el navegador para familias escolares.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://familiasdmps.app/cookie-policy" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/cookie-policy" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/cookie-policy" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/cookie-policy" }],
   }),
   component: CookiePolicyPage,
 });
@@ -71,7 +71,7 @@ function CookiePolicyPage() {
                 <tbody className="divide-y divide-border/60">
                   <tr>
                     <td className="p-3 font-mono font-bold text-primary">sidebar_state</td>
-                    <td className="p-3 text-muted-foreground">familiasdmps.app</td>
+                    <td className="p-3 text-muted-foreground">dmpsinfo.lovable.app</td>
                     <td className="p-3">
                       Remembers whether the desktop side navigation panel is expanded or collapsed.
                     </td>
@@ -302,7 +302,7 @@ function CookiePolicyPage() {
                 <tbody className="divide-y divide-border/60">
                   <tr>
                     <td className="p-3 font-mono font-bold text-primary">sidebar_state</td>
-                    <td className="p-3 text-muted-foreground">familiasdmps.app</td>
+                    <td className="p-3 text-muted-foreground">dmpsinfo.lovable.app</td>
                     <td className="p-3">
                       Recuerda si el panel lateral de navegación está abierto o plegado en la pantalla.
                     </td>

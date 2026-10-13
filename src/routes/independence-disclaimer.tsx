@@ -18,9 +18,9 @@ export const Route = createFileRoute("/independence-disclaimer")({
         content: "Portal comunitario independiente para familias escolares de Des Moines, Iowa.",
       },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://familiasdmps.app/independence-disclaimer" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/independence-disclaimer" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/independence-disclaimer" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/independence-disclaimer" }],
   }),
   component: IndependenceDisclaimerPage,
 });

@@ -45,10 +45,10 @@ export const Route = createFileRoute("/programas-estudiantes")({
       { property: "og:title", content: `${TITLE} — DMPS Familias` },
       { property: "og:description", content: DESCRIPTION },
       { property: "og:type", content: "website" },
-      { property: "og:url", content: "https://familiasdmps.app/programas-estudiantes" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/programas-estudiantes" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/programas-estudiantes" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/programas-estudiantes" }],
   }),
   component: StudentProgramsPage,
 });

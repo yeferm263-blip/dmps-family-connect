@@ -30,9 +30,9 @@ export const Route = createFileRoute("/faq")({
         property: "og:description",
         content: "Respuestas oficiales a preguntas comunes de familias de Lincoln High y DMPS.",
       },
-      { property: "og:url", content: "https://familiasdmps.app/faq" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/faq" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/faq" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/faq" }],
   }),
   component: FaqPage,
 });

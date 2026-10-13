@@ -22,9 +22,9 @@ export const Route = createFileRoute("/topics/")({
         property: "og:description",
         content: "Guías e información de lectura oficial para las familias de DMPS.",
       },
-      { property: "og:url", content: "https://familiasdmps.app/topics" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/topics" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/topics" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/topics" }],
   }),
   component: TopicsPage,
 });

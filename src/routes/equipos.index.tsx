@@ -26,9 +26,9 @@ export const Route = createFileRoute("/equipos/")({
       },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
-      { property: "og:url", content: "https://familiasdmps.app/equipos" },
+      { property: "og:url", content: "https://dmpsinfo.lovable.app/equipos" },
     ],
-    links: [{ rel: "canonical", href: "https://familiasdmps.app/equipos" }],
+    links: [{ rel: "canonical", href: "https://dmpsinfo.lovable.app/equipos" }],
   }),
   component: EquiposIndex,
 });
