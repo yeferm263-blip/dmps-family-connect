@@ -978,7 +978,6 @@ export function PublicShell({ children }: { children: ReactNode }) {
 
             <Accordion
               type="multiple"
-              defaultValue={["academic", "services"]}
               className="space-y-2 border-none"
             >
               {categorizedFooterLinks.map((cat) => {
