@@ -2,6 +2,7 @@
 import { isSupabaseConfigured, supabase } from "@/lib/db";
 import { useEffect, useState } from "react";
 import type { LanguageCode } from "./i18n";
+import { isEventFinished } from "./event-expiry";
 import { filterBySchool } from "./school-scope";
 import { computeContentStatus, isItemActive } from "./content-lifecycle";
 import {
@@ -872,7 +873,10 @@ export async function fetchEvents(schoolId?: string): Promise<EventRow[]> {
             event_translations: trs,
           };
         });
-        return filterBySchool(mapped as unknown as EventRow[], schoolId);
+        return filterBySchool(
+          (mapped as unknown as EventRow[]).filter((e) => !isEventFinished(e)),
+          schoolId,
+        );
       }
     } catch (err) {
       console.warn("[Content] Supabase fetchEvents notice:", err);

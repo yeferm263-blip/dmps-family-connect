@@ -1,3 +1,4 @@
+import { isEventFinished } from "./event-expiry";
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { isSupabaseConfigured, supabase } from "@/lib/db";
 import type { LanguageCode } from "./i18n";
@@ -382,7 +383,10 @@ export async function fetchEvents(schoolId?: string): Promise<EventRow[]> {
                   : null,
             official_url: r.official_url ?? r.source_url ?? null,
           }));
-        return filterBySchool(mapped as unknown as EventRow[], schoolId);
+        return filterBySchool(
+          (mapped as unknown as EventRow[]).filter((e) => !isEventFinished(e)),
+          schoolId,
+        );
       }
     } catch {
       // ignore
