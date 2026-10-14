@@ -315,16 +315,17 @@ function buildAudit(s: Snapshot): AuditSitePayload {
 // Gemini
 // ---------------------------------------------------------------------------
 
-const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_MODELS = ["gemini-3.8-flash", "gemini-3.1-flash-lite"];
 
 async function askGemini(system: string, user: string): Promise<any> {
   const key = process.env["GEMINI_API_KEY"];
   if (!key) throw new Error("Falta la clave de Gemini (GEMINI_API_KEY).");
 
   let lastErr = "";
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    const model = GEMINI_MODELS[attempt % GEMINI_MODELS.length];
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": key },
