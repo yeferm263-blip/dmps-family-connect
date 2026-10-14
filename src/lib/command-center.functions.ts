@@ -346,6 +346,7 @@ async function askGemini(system: string, user: string): Promise<any> {
       }
     }
     lastErr = `${res.status}: ${(await res.text()).slice(0, 200)}`;
+    if (res.status === 404) continue;
     if (res.status === 429 || res.status >= 500) {
       await new Promise((r) => setTimeout(r, 800 * (attempt + 1) + Math.random() * 400));
       continue;
